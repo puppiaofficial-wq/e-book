@@ -103,13 +103,17 @@ Lost the password: `npm run reset-admin -- you@example.com newpassword`.
 6. **Embed** — copy the iframe snippet under *Embed on your site*.
 7. **Measure** — *Insights* shows opens, unique readers and the most-read pages.
 
-Publish without a server: `npm run export` writes each published catalog as a
-plain folder of HTML, CSS, JS and images that works on any static host, with
-contents, search, links and thumbnails intact. `--zoom 3600` re-renders the
-zoom tier larger to buy back magnification range, since a static host cannot
-render regions on demand. See [`docs/HOSTING-ko.md`](docs/HOSTING-ko.md) for
-the trade-offs against running the server, and
-[`docs/CAFE24-ko.md`](docs/CAFE24-ko.md) for a step-by-step Cafe24 walkthrough.
+Publish without a server: the *Embed on your site* tab builds the catalog into
+a single `.zip` of HTML, CSS, JS and images that works on any static host, with
+contents, search, links and thumbnails intact - drop it straight onto Cloudflare
+Pages. `npm run export` does the same from the command line, where `--zoom 3600`
+re-renders the zoom tier larger to buy back magnification range that a static
+host cannot produce on demand.
+
+Walkthroughs: [`docs/CLOUDFLARE-ko.md`](docs/CLOUDFLARE-ko.md) (recommended),
+[`docs/CAFE24-ko.md`](docs/CAFE24-ko.md), and
+[`docs/HOSTING-ko.md`](docs/HOSTING-ko.md) for the trade-offs against running
+the server.
 
 Bulk or scripted imports:
 

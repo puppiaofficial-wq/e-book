@@ -144,6 +144,12 @@ docker compose up -d
 | 변환이 너무 느림 | 페이지당 0.5초가 기준입니다. 100페이지면 1분 정도 걸립니다 |
 | 검색이 안 됨 | 원본 PDF에 텍스트가 없는 경우(이미지로만 된 PDF)입니다 |
 
+## 인터넷에 올리기
+
+관리자 화면의 **Embed on your site** 탭에서 **Prepare download** 를 누르면
+카탈로그가 zip 하나로 만들어집니다. 그 파일을 Cloudflare Pages에 끌어다 놓으면 끝입니다.
+자세한 순서는 [CLOUDFLARE-ko.md](CLOUDFLARE-ko.md) 를 보세요.
+
 ## 명령어로 직접 실행하기
 
 `start.bat` 이 동작하지 않을 때 쓰는 방법입니다. 결과는 똑같습니다.
