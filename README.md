@@ -62,9 +62,18 @@ No database, no PHP, no ImageMagick, no Ghostscript. MuPDF runs as WebAssembly.
 
 ## Install
 
+The fastest route on a desktop is the one-click launcher: drop your PDFs into
+`catalogs/`, then run `start.bat` (Windows) or `start.command` (macOS). It
+installs dependencies on first run, imports anything new in `catalogs/`, starts
+the server and opens the admin console. A Korean step-by-step walkthrough lives
+in [`docs/QUICKSTART-ko.md`](docs/QUICKSTART-ko.md).
+
+Manually:
+
 ```bash
 npm install
 cp .env.example .env          # set PUBLIC_BASE_URL at least
+npm run autoimport            # optional: import every PDF in ./catalogs
 npm start
 ```
 

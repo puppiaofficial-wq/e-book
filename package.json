@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "description": "Self-hosted e-book / digital catalog studio: PDF in, shareable web viewer out.",
-  "engines": { "node": ">=20.11" },
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "import": "node scripts/import.js",
-    "reset-admin": "node scripts/reset-admin.js"
+    "reset-admin": "node scripts/reset-admin.js",
+    "autoimport": "node scripts/autoimport.js"
   },
   "dependencies": {
     "express": "^5.1.0",

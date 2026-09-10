@@ -3,3 +3,7 @@ data/
 *.log
 .DS_Store
 .env
+
+# Catalog source files dropped in for auto-import
+catalogs/*.pdf
+catalogs/*.PDF
