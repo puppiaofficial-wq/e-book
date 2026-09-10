@@ -12,7 +12,8 @@
     "dev": "node --watch server/index.js",
     "import": "node scripts/import.js",
     "reset-admin": "node scripts/reset-admin.js",
-    "autoimport": "node scripts/autoimport.js"
+    "autoimport": "node scripts/autoimport.js",
+    "export": "node scripts/export.js"
   },
   "dependencies": {
     "express": "^5.1.0",

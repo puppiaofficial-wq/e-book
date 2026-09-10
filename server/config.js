@@ -35,14 +35,24 @@ export const SESSION_SECRET = (() => {
   return secret;
 })();
 
-/** Rendering defaults. Overridable per import. */
+/**
+ * Rendering defaults.
+ *
+ * Sizes are derived from the page's physical dimensions rather than fixed
+ * pixel widths: a fixed width silently starves a large or double-width page
+ * of resolution, which is exactly what makes a zoomed catalog look soft.
+ */
 export const RENDER = {
-  viewWidth: 1400,   // page image used by the viewer
-  zoomWidth: 2400,   // high-resolution image used when zooming
-  thumbWidth: 280,   // contact sheet / bookshelf cover
-  viewQuality: 80,
-  zoomQuality: 80,
-  thumbQuality: 68
+  zoomDpi: 320,      // high-resolution image used when zooming
+  zoomMin: 3000,
+  zoomMax: 4600,
+  viewDpi: 170,      // page image used by the viewer at reading size
+  viewMin: 1500,
+  viewMax: 2400,
+  thumbWidth: 320,   // contact sheet / bookshelf cover
+  viewQuality: 82,
+  zoomQuality: 82,
+  thumbQuality: 70
 };
 
 export const SESSION_COOKIE = 'eb_session';

@@ -102,10 +102,9 @@ export function publicManifest(book, { share = null, preview = false } = {}) {
   };
 }
 
-/** Region rendering needs the source PDF and a page map to aim at. */
+/** Region rendering needs the source PDF; the page map can be replayed. */
 export function canRenderHires(book) {
-  if (!fs.existsSync(path.join(bookDir(book.id), 'source.pdf'))) return false;
-  return Array.isArray(book.pages.map) || !book.pages.splitApplied;
+  return fs.existsSync(path.join(bookDir(book.id), 'source.pdf'));
 }
 
 export function listableBooks() {

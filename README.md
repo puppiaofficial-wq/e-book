@@ -103,6 +103,13 @@ Lost the password: `npm run reset-admin -- you@example.com newpassword`.
 6. **Embed** — copy the iframe snippet under *Embed on your site*.
 7. **Measure** — *Insights* shows opens, unique readers and the most-read pages.
 
+Publish without a server: `npm run export` writes each published catalog as a
+plain folder of HTML, CSS, JS and images that works on any static host, with
+contents, search, links and thumbnails intact. `--zoom 3600` re-renders the
+zoom tier larger to buy back magnification range, since a static host cannot
+render regions on demand. See [`docs/HOSTING-ko.md`](docs/HOSTING-ko.md) for
+the trade-offs against running the server.
+
 Bulk or scripted imports:
 
 ```bash

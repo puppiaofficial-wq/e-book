@@ -32,6 +32,16 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
   }
   const splitDecision = decideSplits(geometry, opts.splitSpreads);
 
+  // One output page's width in PostScript points decides how many pixels the
+  // derivatives get, so an A4 page and a double-width spread both land at the
+  // same physical resolution.
+  const outputPointWidth = geometry[0].w / (splitDecision[0] ? 2 : 1);
+  const target = {
+    zoom: pixelsFor(outputPointWidth, opts.zoomDpi, opts.zoomMin, opts.zoomMax),
+    view: pixelsFor(outputPointWidth, opts.viewDpi, opts.viewMin, opts.viewMax),
+    thumb: opts.thumbWidth
+  };
+
   const outline = readOutline(doc);
   const pages = [];
   let outputIndex = 0;
@@ -41,8 +51,7 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
     const page = doc.loadPage(i);
     const box = geometry[i];
     const segments = splitDecision[i] ? 2 : 1;
-    const targetWidth = opts.zoomWidth;
-    const scale = targetWidth / (box.w / segments);
+    const scale = target.zoom / (box.w / segments);
     const pixmap = page.toPixmap(
       mupdf.Matrix.scale(scale, scale),
       mupdf.ColorSpace.DeviceRGB,
@@ -67,10 +76,10 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
       const crop = () => sharp(source, { raw: { width: fullWidth, height: fullHeight, channels } }).extract(region);
       const name = `p${pad(outputIndex)}.webp`;
       await Promise.all([
-        crop().webp({ quality: opts.zoomQuality }).toFile(path.join(outDir, 'zoom', name)),
-        crop().resize({ width: Math.min(opts.viewWidth, region.width) })
-          .webp({ quality: opts.viewQuality }).toFile(path.join(outDir, 'pages', name)),
-        crop().resize({ width: Math.min(opts.thumbWidth, region.width) })
+        crop().webp({ quality: opts.zoomQuality, smartSubsample: true, effort: 5 }).toFile(path.join(outDir, 'zoom', name)),
+        crop().resize({ width: Math.min(target.view, region.width) })
+          .webp({ quality: opts.viewQuality, smartSubsample: true, effort: 5 }).toFile(path.join(outDir, 'pages', name)),
+        crop().resize({ width: Math.min(target.thumb, region.width) })
           .webp({ quality: opts.thumbQuality }).toFile(path.join(outDir, 'thumbs', name))
       ]);
 
@@ -103,11 +112,11 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
     splitApplied: splitDecision.some(Boolean),
     // Lets the viewer ask the server to re-render any region from the source.
     map: pages.map((page) => ({ s: page.source, h: page.half })),
-    sizes: {
-      view: opts.viewWidth,
-      zoom: opts.zoomWidth,
-      thumb: opts.thumbWidth
-    },
+    sizes: target,
+    // Physical page size, so the admin can report the effective resolution.
+    ptWidth: Number(outputPointWidth.toFixed(2)),
+    ptHeight: Number(geometry[0].h.toFixed(2)),
+    source: 'pdf',
     createdAt: new Date().toISOString()
   };
 
@@ -138,10 +147,10 @@ export async function convertImages(files, outDir, options = {}, onProgress = ()
     const name = `p${pad(index)}.webp`;
     const buf = await image.toBuffer();
     await Promise.all([
-      sharp(buf).resize({ width: Math.min(opts.zoomWidth, meta.width), withoutEnlargement: true })
-        .webp({ quality: opts.zoomQuality }).toFile(path.join(outDir, 'zoom', name)),
-      sharp(buf).resize({ width: Math.min(opts.viewWidth, meta.width), withoutEnlargement: true })
-        .webp({ quality: opts.viewQuality }).toFile(path.join(outDir, 'pages', name)),
+      sharp(buf).resize({ width: Math.min(opts.zoomMax, meta.width), withoutEnlargement: true })
+        .webp({ quality: opts.zoomQuality, smartSubsample: true, effort: 5 }).toFile(path.join(outDir, 'zoom', name)),
+      sharp(buf).resize({ width: Math.min(opts.viewMax, meta.width), withoutEnlargement: true })
+        .webp({ quality: opts.viewQuality, smartSubsample: true, effort: 5 }).toFile(path.join(outDir, 'pages', name)),
       sharp(buf).resize({ width: Math.min(opts.thumbWidth, meta.width), withoutEnlargement: true })
         .webp({ quality: opts.thumbQuality }).toFile(path.join(outDir, 'thumbs', name))
     ]);
@@ -159,7 +168,10 @@ export async function convertImages(files, outDir, options = {}, onProgress = ()
     hasText: false,
     splitApplied: false,
     map: null,
-    sizes: { view: opts.viewWidth, zoom: opts.zoomWidth, thumb: opts.thumbWidth },
+    sizes: { view: Math.min(opts.viewMax, pages[0].width), zoom: pages[0].width, thumb: opts.thumbWidth },
+    ptWidth: null,
+    ptHeight: null,
+    source: 'images',
     createdAt: new Date().toISOString()
   };
   await fsp.writeFile(path.join(outDir, 'text.json'), JSON.stringify({ pages: [] }));
@@ -176,7 +188,11 @@ async function prepareDirs(outDir) {
   }
 }
 
-function decideSplits(geometry, mode) {
+function pixelsFor(pointWidth, dpi, min, max) {
+  return Math.round(Math.min(max, Math.max(min, (pointWidth / 72) * dpi)));
+}
+
+export function decideSplits(geometry, mode) {
   if (mode === 'never') return geometry.map(() => false);
   if (mode === 'always') return geometry.map((g) => g.w / g.h >= 1.05);
   // auto: split wide pages only when the document is otherwise portrait,
@@ -329,7 +345,10 @@ export function pagesRecord(manifest) {
     hasText: manifest.hasText,
     splitApplied: manifest.splitApplied,
     map: manifest.map,
-    sizes: manifest.sizes
+    sizes: manifest.sizes,
+    ptWidth: manifest.ptWidth,
+    ptHeight: manifest.ptHeight,
+    source: manifest.source
   };
 }
 

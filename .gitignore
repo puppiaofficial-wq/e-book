@@ -7,3 +7,6 @@ data/
 # Catalog source files dropped in for auto-import
 catalogs/*.pdf
 catalogs/*.PDF
+
+# Static export output
+export/

@@ -617,8 +617,7 @@ async function runSearch() {
   }
   el.searchBody.innerHTML = '<p class="empty-note">Searching…</p>';
   try {
-    const response = await fetch(`/api/v1/books/${encodeURIComponent(BOOK.slug)}/search?q=${encodeURIComponent(query)}`);
-    const data = await response.json();
+    const data = BOOK.static ? await searchLocally(query) : await searchOnServer(query);
     if (!data.hits.length) {
       el.searchBody.innerHTML = `<p class="empty-note">No results for “${escapeAttr(query)}”.</p>`;
       return;
@@ -645,6 +644,36 @@ el.searchBody?.addEventListener('click', (event) => {
   goTo(Number(button.dataset.page)).then(() => markHit(hit));
   if (window.innerWidth < 760) openPanel(null);
 });
+
+async function searchOnServer(query) {
+  const response = await fetch(`/api/v1/books/${encodeURIComponent(BOOK.slug)}/search?q=${encodeURIComponent(query)}`);
+  return response.json();
+}
+
+/** Statically exported catalogs carry their text with them. */
+let localIndex = null;
+async function searchLocally(query) {
+  if (!localIndex) {
+    const response = await fetch(BOOK.urls.text);
+    localIndex = await response.json();
+  }
+  const needle = query.toLowerCase();
+  const hits = [];
+  for (const page of localIndex.pages || []) {
+    for (const line of page.lines || []) {
+      const at = line.text.toLowerCase().indexOf(needle);
+      if (at < 0) continue;
+      const start = Math.max(0, at - 32);
+      hits.push({
+        page: page.index,
+        snippet: (start ? '…' : '') + line.text.slice(start, at + needle.length + 48).trim() + '…',
+        box: { x: line.x, y: line.y, w: line.w, h: line.h }
+      });
+      if (hits.length >= 120) return { query, hits };
+    }
+  }
+  return { query, hits };
+}
 
 function highlight(text, query) {
   const safe = escapeAttr(text);
@@ -929,7 +958,9 @@ const SHARE_TARGETS = [
 ];
 
 function shareUrl() {
-  const base = `${BOOK.origin || location.origin}${BOOK.urls.self}`;
+  const base = BOOK.static
+    ? `${location.origin}${location.pathname}`
+    : `${BOOK.origin || location.origin}${BOOK.urls.self}`;
   return el.shareAtPage.checked ? `${base}#p=${firstOf(state.page)}` : base;
 }
 
@@ -951,6 +982,10 @@ el.shareGrid.addEventListener('click', (event) => {
   const target = SHARE_TARGETS.find((t) => t.key === button.dataset.key);
   if (!target) return;
   if (target.key === 'qr') {
+    if (BOOK.static) {
+      toast('QR codes are available in the admin console');
+      return;
+    }
     el.shareQr.hidden = false;
     el.shareQr.innerHTML = `<img src="/api/v1/qr?data=${encodeURIComponent(shareUrl())}" alt="QR code for this catalog">`;
     return;
@@ -1082,6 +1117,7 @@ window.addEventListener('keydown', (event) => {
 
 let lastReported = 0;
 function beacon(type, page) {
+  if (BOOK.static) return;
   try {
     const body = JSON.stringify({ slug: BOOK.slug, type, page });
     if (navigator.sendBeacon) {

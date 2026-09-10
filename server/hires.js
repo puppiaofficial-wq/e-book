@@ -8,6 +8,7 @@
  */
 import fs from 'node:fs';
 import * as mupdf from 'mupdf';
+import { decideSplits } from './convert.js';
 import sharp from 'sharp';
 
 const MAX_EDGE = 3600;      // longest side of a single render
@@ -38,6 +39,7 @@ function documentFor(bookId, pdfPath) {
 export function forgetDocument(bookId) {
   documents.get(bookId)?.destroy?.();
   documents.delete(bookId);
+  derivedMaps.delete(bookId);
   for (const key of [...tiles.keys()]) {
     if (key.startsWith(`${bookId}:`)) tiles.delete(key);
   }
@@ -49,8 +51,8 @@ export function forgetDocument(bookId) {
  *              output page came from, when a spread was split
  * @param pixels requested width of the rendered region, in device pixels
  */
-export async function renderRegion({ bookId, pdfPath, sourcePage, half, rect, pixels }) {
-  const key = `${bookId}:${sourcePage}:${half}:${rect.x},${rect.y},${rect.w},${rect.h}:${pixels}`;
+export async function renderRegion({ bookId, pdfPath, sourcePage, half, rect, pixels, maxEdge = MAX_EDGE, maxPixels = MAX_PIXELS, quality = 88 }) {
+  const key = `${bookId}:${sourcePage}:${half}:${rect.x},${rect.y},${rect.w},${rect.h}:${pixels}:${maxEdge}`;
   const cached = tiles.get(key);
   if (cached) return cached;
 
@@ -75,8 +77,8 @@ export async function renderRegion({ bookId, pdfPath, sourcePage, half, rect, pi
   let scale = pixels / regionW;
 
   // Clamp so a single request can never ask the renderer for an absurd bitmap.
-  scale = Math.min(scale, MAX_EDGE / Math.max(regionW, regionH));
-  scale = Math.min(scale, Math.sqrt(MAX_PIXELS / (regionW * regionH)));
+  scale = Math.min(scale, maxEdge / Math.max(regionW, regionH));
+  scale = Math.min(scale, Math.sqrt(maxPixels / (regionW * regionH)));
 
   const outW = Math.max(1, Math.round(regionW * scale));
   const outH = Math.max(1, Math.round(regionH * scale));
@@ -99,7 +101,7 @@ export async function renderRegion({ bookId, pdfPath, sourcePage, half, rect, pi
   const buffer = await sharp(Buffer.from(raw.buffer, raw.byteOffset, raw.length), {
     raw: { width: pixmap.getWidth(), height: pixmap.getHeight(), channels: pixmap.getNumberOfComponents() }
   })
-    .webp({ quality: 86 })
+    .webp({ quality, smartSubsample: true })
     .toBuffer();
   pixmap.destroy?.();
 
@@ -108,13 +110,47 @@ export async function renderRegion({ bookId, pdfPath, sourcePage, half, rect, pi
   return buffer;
 }
 
+const derivedMaps = new Map();
+
 /** Output page -> source page, honouring spreads that were split in two. */
-export function locatePage(book, outputPage) {
-  const map = book.pages.map;
-  if (Array.isArray(map) && map[outputPage - 1]) {
+export function locatePage(book, outputPage, pdfPath) {
+  const map = Array.isArray(book.pages.map) ? book.pages.map : derivedMap(book, pdfPath);
+  if (map && map[outputPage - 1]) {
     const entry = map[outputPage - 1];
     return { sourcePage: entry.s, half: entry.h || null };
   }
-  if (book.pages.splitApplied) return null; // pre-dates the map: fall back
+  if (book.pages.splitApplied) return null;
   return { sourcePage: outputPage, half: null };
+}
+
+/**
+ * Catalogs imported before the map was stored can still be located: the split
+ * decision is a pure function of the page geometry, so it replays exactly.
+ */
+function derivedMap(book, pdfPath) {
+  if (!book.pages.splitApplied || !pdfPath) return null;
+  const hit = derivedMaps.get(book.id);
+  if (hit) return hit;
+  try {
+    const doc = documentFor(book.id, pdfPath);
+    const geometry = [];
+    for (let i = 0; i < doc.countPages(); i += 1) {
+      const [x0, y0, x1, y1] = doc.loadPage(i).getBounds();
+      geometry.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    }
+    const splits = decideSplits(geometry, 'auto');
+    const map = [];
+    splits.forEach((split, i) => {
+      if (split) {
+        map.push({ s: i + 1, h: 'left' }, { s: i + 1, h: 'right' });
+      } else {
+        map.push({ s: i + 1, h: null });
+      }
+    });
+    if (map.length !== book.pages.count) return null;
+    derivedMaps.set(book.id, map);
+    return map;
+  } catch {
+    return null;
+  }
 }

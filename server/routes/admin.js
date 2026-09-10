@@ -9,7 +9,7 @@ import { wrap, originOf, id, token, nowIso, rmrf, slugify } from '../util.js';
 import {
   hashPassword, verifyPassword, issueSession, endSession, currentAdmin, requireAdmin
 } from '../auth.js';
-import { bookDir, scheduleState } from '../access.js';
+import { bookDir, scheduleState, canRenderHires } from '../access.js';
 import { convertPdf, convertImages, pagesRecord } from '../convert.js';
 import { createJob, enqueue, subscribe, getJob } from '../jobs.js';
 import { summarise } from '../analytics.js';
@@ -97,7 +97,8 @@ router.get('/api/books/:id', (req, res) => {
   res.json({
     book: publicSafe(book),
     shares: store.sharesForBook(book.id).map(shareSafe(req)),
-    urls: linkSet(req, book)
+    urls: linkSet(req, book),
+    quality: qualityReport(book)
   });
 });
 
@@ -304,6 +305,25 @@ function startConversion(book, files, options) {
   });
 
   return job;
+}
+
+/** What the operator needs to judge zoom sharpness at a glance. */
+function qualityReport(book) {
+  const pages = book.pages;
+  const dpi = pages.ptWidth ? Math.round(pages.width / (pages.ptWidth / 72)) : null;
+  return {
+    source: pages.source || (pages.hasText ? 'pdf' : 'unknown'),
+    storedWidth: pages.width || 0,
+    storedHeight: pages.height || 0,
+    viewWidth: pages.sizes?.view || null,
+    dpi,
+    mm: pages.ptWidth ? {
+      w: Math.round((pages.ptWidth / 72) * 25.4),
+      h: Math.round((pages.ptHeight / 72) * 25.4)
+    } : null,
+    splitApplied: Boolean(pages.splitApplied),
+    hires: canRenderHires(book)
+  };
 }
 
 function stripExtension(name = '') {

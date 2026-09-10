@@ -194,7 +194,8 @@ router.get('/media/:bookId/hires/:file', wrap(async (req, res) => {
 
   const page = Number(match[1]);
   if (!(page >= 1 && page <= book.pages.count)) return res.status(404).end();
-  const target = locatePage(book, page);
+  const pdfPath = path.join(bookDir(book.id), 'source.pdf');
+  const target = locatePage(book, page, pdfPath);
   if (!target) return res.status(404).end();
 
   const frac = (value, fallback) => {
@@ -210,7 +211,7 @@ router.get('/media/:bookId/hires/:file', wrap(async (req, res) => {
 
   const buffer = await renderRegion({
     bookId: book.id,
-    pdfPath: path.join(bookDir(book.id), 'source.pdf'),
+    pdfPath,
     sourcePage: target.sourcePage,
     half: target.half,
     rect: { x, y, w, h },

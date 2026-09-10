@@ -9,6 +9,7 @@ const state = {
   book: null,
   shares: [],
   urls: null,
+  quality: null,
   analytics: null,
   jobs: new Map()
 };
@@ -412,6 +413,7 @@ function bookView(tab = 'overview') {
 
 function overviewTab(host) {
   const book = state.book;
+  const q = state.quality || { source: 'unknown', storedWidth: 0, storedHeight: 0, hires: false, splitApplied: false };
   host.innerHTML = `
     <div class="card">
       <h2>Catalog details</h2>
@@ -434,6 +436,22 @@ function overviewTab(host) {
         <span class="hint">${esc(state.urls.base)}/b/<b>${esc(book.slug)}</b> — keep this stable once you have shared it.</span>
       </div>
       <button class="btn btn--primary" id="saveDetails">Save changes</button>
+    </div>
+
+    <div class="card">
+      <h2>Image quality</h2>
+      <p class="card__hint">If a zoomed page looks soft, this is where to look first.</p>
+      <table>
+        <tbody>
+          <tr><td>Imported from</td><td><b>${q.source === 'pdf' ? 'PDF' : 'Page images'}</b></td></tr>
+          <tr><td>Stored page size</td><td><b>${q.storedWidth} × ${q.storedHeight} px</b>${q.dpi ? ` &nbsp;·&nbsp; about ${q.dpi} DPI` : ''}</td></tr>
+          ${q.mm ? `<tr><td>Physical page</td><td>${q.mm.w} × ${q.mm.h} mm</td></tr>` : ''}
+          <tr><td>Double-page spreads</td><td>${q.splitApplied ? 'split into single pages' : 'not detected'}</td></tr>
+          <tr><td>Zoom detail</td><td>${q.hires
+            ? '<span class="pill pill--live">On demand</span> re-rendered from the PDF, sharp at any magnification'
+            : '<span class="pill pill--warn">Stored only</span> magnification stops at the stored resolution'}</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="card">
@@ -1149,6 +1167,7 @@ async function loadBook(bookId) {
   state.book = data.book;
   state.shares = data.shares;
   state.urls = data.urls;
+  state.quality = data.quality;
 }
 
 async function render() {
