@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { BOOKS_DIR } from './config.js';
 import * as store from './store.js';
@@ -83,19 +84,28 @@ export function publicManifest(book, { share = null, preview = false } = {}) {
     capabilities: {
       search: Boolean(book.pages.hasText),
       download: allowDownload,
+      hires: canRenderHires(book),
       preview
     },
+    sizes: book.pages.sizes || { view: 1400, zoom: 2400, thumb: 280 },
     toc: book.toc || [],
     links: book.links || {},
     urls: {
       page: `${media}/pages/p{n}.webp?v=${version}`,
       zoom: `${media}/zoom/p{n}.webp?v=${version}`,
       thumb: `${media}/thumbs/p{n}.webp?v=${version}`,
+      hires: canRenderHires(book) ? `${media}/hires/p{n}.webp?v=${version}` : null,
       download: allowDownload ? `${media}/download` : null,
       self: `/b/${book.slug}`
     },
     share: share ? { label: share.label || '', recipient: share.recipient || '' } : null
   };
+}
+
+/** Region rendering needs the source PDF and a page map to aim at. */
+export function canRenderHires(book) {
+  if (!fs.existsSync(path.join(bookDir(book.id), 'source.pdf'))) return false;
+  return Array.isArray(book.pages.map) || !book.pages.splitApplied;
 }
 
 export function listableBooks() {

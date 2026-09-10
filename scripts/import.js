@@ -8,7 +8,7 @@ import fsp from 'node:fs/promises';
 import fs from 'node:fs';
 import * as store from '../server/store.js';
 import { bookDir } from '../server/access.js';
-import { convertPdf } from '../server/convert.js';
+import { convertPdf, pagesRecord } from '../server/convert.js';
 import { nowIso } from '../server/util.js';
 
 const args = process.argv.slice(2);
@@ -52,15 +52,7 @@ process.stdout.write('\n');
 
 const stat = await fsp.stat(target);
 await store.updateBook(book.id, {
-  pages: {
-    count: outcome.manifest.pageCount,
-    width: outcome.manifest.width,
-    height: outcome.manifest.height,
-    aspect: outcome.manifest.aspect,
-    format: outcome.manifest.format,
-    hasText: outcome.manifest.hasText,
-    splitApplied: outcome.manifest.splitApplied
-  },
+  pages: pagesRecord(outcome.manifest),
   toc: outcome.toc,
   links: outcome.links,
   source: { filename: path.basename(source), bytes: stat.size, importedAt: nowIso() },

@@ -405,8 +405,23 @@ html[data-theme='light'] .pane { box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
 .zoom[data-open='true'] { display: block; }
 .zoom.is-panning { cursor: grabbing; }
 .zoom__canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: flex; will-change: transform; }
-.zoom__canvas img { display: block; height: auto; background: #fff; }
+.zoom__page { position: relative; flex: none; background: #fff; overflow: hidden; }
+.zoom__base { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* Server-rendered detail for the region in view, laid exactly over the base. */
+.zoom__hi { position: absolute; display: block; }
 .zoom__close { position: fixed; top: 14px; right: 14px; z-index: 62; background: var(--chrome); }
+.zoom__busy {
+  position: fixed; bottom: 22px; right: 22px; z-index: 62;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--chrome); color: var(--muted); font-size: 12.5px;
+  padding: 7px 13px; border-radius: 999px; pointer-events: none;
+}
+.zoom__spin {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+
 .zoom__hint {
   position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
   background: var(--chrome); color: var(--fg); font-size: 12.5px; padding: 8px 14px;

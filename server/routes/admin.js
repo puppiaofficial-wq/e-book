@@ -10,7 +10,7 @@ import {
   hashPassword, verifyPassword, issueSession, endSession, currentAdmin, requireAdmin
 } from '../auth.js';
 import { bookDir, scheduleState } from '../access.js';
-import { convertPdf, convertImages } from '../convert.js';
+import { convertPdf, convertImages, pagesRecord } from '../convert.js';
 import { createJob, enqueue, subscribe, getJob } from '../jobs.js';
 import { summarise } from '../analytics.js';
 import { invalidateText } from './public.js';
@@ -287,17 +287,7 @@ function startConversion(book, files, options) {
 
       report({ progress: 0.97, message: 'Writing catalog data' });
       const current = store.bookById(book.id);
-      const patch = {
-        pages: {
-          count: outcome.manifest.pageCount,
-          width: outcome.manifest.width,
-          height: outcome.manifest.height,
-          aspect: outcome.manifest.aspect,
-          format: outcome.manifest.format,
-          hasText: outcome.manifest.hasText,
-          splitApplied: outcome.manifest.splitApplied
-        }
-      };
+      const patch = { pages: pagesRecord(outcome.manifest) };
       if (!options.keepMeta) {
         patch.toc = outcome.toc;
         patch.links = outcome.links;

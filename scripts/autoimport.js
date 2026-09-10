@@ -10,7 +10,7 @@ import fsp from 'node:fs/promises';
 import { ROOT } from '../server/config.js';
 import * as store from '../server/store.js';
 import { bookDir } from '../server/access.js';
-import { convertPdf } from '../server/convert.js';
+import { convertPdf, pagesRecord } from '../server/convert.js';
 import { nowIso } from '../server/util.js';
 
 const inbox = path.join(ROOT, 'catalogs');
@@ -53,15 +53,7 @@ for (const name of files) {
   process.stdout.write('\n');
 
   await store.updateBook(book.id, {
-    pages: {
-      count: outcome.manifest.pageCount,
-      width: outcome.manifest.width,
-      height: outcome.manifest.height,
-      aspect: outcome.manifest.aspect,
-      format: outcome.manifest.format,
-      hasText: outcome.manifest.hasText,
-      splitApplied: outcome.manifest.splitApplied
-    },
+    pages: pagesRecord(outcome.manifest),
     toc: outcome.toc,
     links: outcome.links,
     source: { filename: name, bytes: stat.size, importedAt: nowIso() },

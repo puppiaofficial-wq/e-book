@@ -29,7 +29,9 @@ PDF  ──►  server-side conversion (MuPDF + sharp)  ──►  WebP page set
 * Realistic 3D page turn on desktop, drag-to-turn with your finger, slide on phones.
 * Two-page spread on wide screens, single page on phones, decided automatically.
 * Contents panel, full-text search with in-page highlighting, thumbnail grid.
-* Pinch / wheel / double-tap zoom against a high-resolution image.
+* Pinch / wheel / double-tap zoom that stays sharp: once the view settles the
+  server re-renders just that region from the source PDF at screen resolution,
+  so small print holds up at 8x instead of turning into an upscaled blur.
 * Clickable link areas, deep links (`#p=12`), keyboard shortcuts, fullscreen.
 * Share sheet with copy link, email, WhatsApp, LinkedIn and a QR code.
 * Dark or light theme, your accent colour and logo.
@@ -161,5 +163,9 @@ Each catalog owns `data/books/<id>/` with `source.pdf`, `pages/`, `zoom/`,
   string, so a re-import busts the cache without a purge.
 * Search runs on the server against the extracted text and returns line boxes,
   which is what lets the viewer highlight the hit on the page.
+* Zoom detail is rendered on demand rather than pre-generated, so a catalog
+  costs a few megabytes instead of hundreds. Requests are quantised to a grid
+  and cached for a week, and a catalog imported from images (no PDF to render
+  from) caps its zoom at the stored resolution instead of upscaling.
 * Analytics store a daily-rotating hash of IP and user agent, never the raw
   values, and set no tracking cookie.

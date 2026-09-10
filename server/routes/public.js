@@ -7,8 +7,9 @@ import * as store from '../store.js';
 import { wrap, originOf, escapeHtml, readJson } from '../util.js';
 import { issueGrant, currentAdmin } from '../auth.js';
 import {
-  bookDir, checkAccess, checkBookPassword, publicManifest, listableBooks, shareUsable
+  bookDir, checkAccess, checkBookPassword, publicManifest, listableBooks, shareUsable, canRenderHires
 } from '../access.js';
+import { renderRegion, locatePage } from '../hires.js';
 import { viewerPage, gatePage, libraryPage } from '../pages.js';
 import { track, visitorHash, deviceOf } from '../analytics.js';
 
@@ -176,6 +177,47 @@ router.get('/media/:bookId/download', wrap(async (req, res) => {
   if (!fs.existsSync(file)) return res.status(404).send('Not found');
   track({ type: 'download', book: book.id, share: access.share?.token, v: visitorHash(req) });
   res.download(file, `${book.slug}.pdf`);
+}));
+
+/**
+ * Renders just the region the reader is looking at, straight from the source
+ * PDF, so zooming stays sharp instead of upscaling a fixed-size image.
+ */
+router.get('/media/:bookId/hires/:file', wrap(async (req, res) => {
+  const match = /^p(\d{4})\.webp$/.exec(req.params.file);
+  if (!match) return res.status(404).end();
+  const book = store.bookById(req.params.bookId);
+  if (!book) return res.status(404).end();
+  const access = checkAccess(req, book);
+  if (!access.ok) return res.status(403).end();
+  if (!canRenderHires(book)) return res.status(404).end();
+
+  const page = Number(match[1]);
+  if (!(page >= 1 && page <= book.pages.count)) return res.status(404).end();
+  const target = locatePage(book, page);
+  if (!target) return res.status(404).end();
+
+  const frac = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
+  };
+  const x = frac(req.query.x, 0);
+  const y = frac(req.query.y, 0);
+  const w = Math.min(1 - x, frac(req.query.w, 1) || 1);
+  const h = Math.min(1 - y, frac(req.query.h, 1) || 1);
+  if (w <= 0.001 || h <= 0.001) return res.status(400).end();
+  const pixels = Math.min(3600, Math.max(256, Number(req.query.px) || 1600));
+
+  const buffer = await renderRegion({
+    bookId: book.id,
+    pdfPath: path.join(bookDir(book.id), 'source.pdf'),
+    sourcePage: target.sourcePage,
+    half: target.half,
+    rect: { x, y, w, h },
+    pixels
+  });
+  res.set('Cache-Control', 'public, max-age=604800, immutable');
+  res.type('image/webp').send(buffer);
 }));
 
 router.get('/media/:bookId/:kind/:file', wrap(async (req, res) => {

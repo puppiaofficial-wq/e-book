@@ -101,6 +101,8 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
     format: 'webp',
     hasText: textFound,
     splitApplied: splitDecision.some(Boolean),
+    // Lets the viewer ask the server to re-render any region from the source.
+    map: pages.map((page) => ({ s: page.source, h: page.half })),
     sizes: {
       view: opts.viewWidth,
       zoom: opts.zoomWidth,
@@ -156,6 +158,7 @@ export async function convertImages(files, outDir, options = {}, onProgress = ()
     format: 'webp',
     hasText: false,
     splitApplied: false,
+    map: null,
     sizes: { view: opts.viewWidth, zoom: opts.zoomWidth, thumb: opts.thumbWidth },
     createdAt: new Date().toISOString()
   };
@@ -313,6 +316,21 @@ function collectLinks(pages, splitDecision) {
     );
   }
   return out;
+}
+
+/** The `pages` block stored on a book record, derived from a conversion. */
+export function pagesRecord(manifest) {
+  return {
+    count: manifest.pageCount,
+    width: manifest.width,
+    height: manifest.height,
+    aspect: manifest.aspect,
+    format: manifest.format,
+    hasText: manifest.hasText,
+    splitApplied: manifest.splitApplied,
+    map: manifest.map,
+    sizes: manifest.sizes
+  };
 }
 
 export function readManifest(dir) {

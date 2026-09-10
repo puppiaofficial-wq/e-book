@@ -41,7 +41,7 @@ export const RENDER = {
   zoomWidth: 2400,   // high-resolution image used when zooming
   thumbWidth: 280,   // contact sheet / bookshelf cover
   viewQuality: 80,
-  zoomQuality: 74,
+  zoomQuality: 80,
   thumbQuality: 68
 };
 
