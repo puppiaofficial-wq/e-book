@@ -22,6 +22,8 @@
 }
 
 * { box-sizing: border-box; }
+/* .btn sets display, which would otherwise beat the browser's [hidden] rule. */
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
 h1, h2, h3 { letter-spacing: -.015em; }

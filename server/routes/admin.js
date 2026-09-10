@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import multer from 'multer';
-import { TMP_DIR, PUBLIC_BASE_URL } from '../config.js';
+import { TMP_DIR, PUBLIC_BASE_URL, EXPORT_DIR } from '../config.js';
 import * as store from '../store.js';
 import { wrap, originOf, id, token, nowIso, rmrf, slugify } from '../util.js';
 import {
@@ -11,6 +11,7 @@ import {
 } from '../auth.js';
 import { bookDir, scheduleState, canRenderHires } from '../access.js';
 import { convertPdf, convertImages, pagesRecord } from '../convert.js';
+import { exportBook, zipFolder, exportPathsFor } from '../export.js';
 import { createJob, enqueue, subscribe, getJob } from '../jobs.js';
 import { summarise } from '../analytics.js';
 import { invalidateText } from './public.js';
@@ -181,6 +182,53 @@ router.post('/api/books/:id/duplicate', wrap(async (req, res) => {
   await fsp.cp(bookDir(book.id), bookDir(copy.id), { recursive: true });
   await store.addBook(copy);
   res.json({ book: summaryOf(copy) });
+}));
+
+/* ----------------------------------------------------------- export */
+
+/**
+ * Builds the static bundle and zips it, so publishing to a static host is a
+ * download and a drag rather than a terminal session.
+ */
+router.post('/api/books/:id/export', wrap(async (req, res) => {
+  const book = store.bookById(req.params.id);
+  if (!book) return res.status(404).json({ error: 'Not found' });
+  if (!book.pages.count) return res.status(409).json({ error: 'This catalog has no pages yet.' });
+
+  const zoomWidth = req.body?.zoomWidth ? Math.min(6000, Math.max(1200, Number(req.body.zoomWidth))) : null;
+  const job = createJob(`${book.title} (export)`);
+  const paths = exportPathsFor(book);
+
+  enqueue(job, async (report) => {
+    report({ progress: 0.05, message: 'Collecting page images' });
+    const result = await exportBook(book, EXPORT_DIR, {
+      zoomWidth,
+      onProgress: ({ done, total }) => report({
+        progress: 0.05 + 0.8 * (done / total),
+        message: `Rendering zoom image ${done} of ${total}`
+      })
+    });
+    report({ progress: 0.88, message: 'Packing the download' });
+    const zipBytes = await zipFolder(result.dir, paths.zip);
+    return {
+      bookId: book.id,
+      slug: book.slug,
+      bytes: result.bytes,
+      zipBytes,
+      zoomWidth: result.zoomWidth,
+      folder: result.dir
+    };
+  });
+
+  res.status(202).json({ jobId: job.id });
+}));
+
+router.get('/api/books/:id/export.zip', wrap(async (req, res) => {
+  const book = store.bookById(req.params.id);
+  if (!book) return res.status(404).json({ error: 'Not found' });
+  const { zip } = exportPathsFor(book);
+  if (!fs.existsSync(zip)) return res.status(404).json({ error: 'Nothing prepared yet.' });
+  res.download(zip, `${book.slug}.zip`);
 }));
 
 /* ----------------------------------------------------------- shares */

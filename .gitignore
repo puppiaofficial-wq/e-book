@@ -10,3 +10,5 @@ catalogs/*.PDF
 
 # Static export output
 export/
+
+data/exports/

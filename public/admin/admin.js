@@ -1005,6 +1005,32 @@ function embedTab(host) {
     </div>
 
     <div class="card">
+      <h2>Publish without a server</h2>
+      <p class="card__hint">
+        Builds this catalog into a single .zip you can drop onto Cloudflare Pages,
+        or unzip and upload by FTP. Everything works inside it: page turning,
+        contents, search, links and thumbnails. No terminal needed.
+      </p>
+      <div class="grid2">
+        <div class="field">
+          <label for="ex-zoom">Zoom image quality</label>
+          <select id="ex-zoom">
+            <option value="">Use the stored images — fastest</option>
+            <option value="3000">3000 px — good</option>
+            <option value="3600" selected>3600 px — sharper, recommended</option>
+            <option value="4400">4400 px — sharpest, slow to build</option>
+          </select>
+          <span class="hint">A static host cannot re-render on demand, so the zoom limit is set here.</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn--primary" id="ex-build">Prepare download</button>
+        <a class="btn" id="ex-get" href="/admin/api/books/${state.book.id}/export.zip" hidden>Download .zip</a>
+      </div>
+      <div id="ex-status" style="margin-top:14px"></div>
+    </div>
+
+    <div class="card">
       <h2>QR code</h2>
       <p class="card__hint">For trade-show signage, hang tags or printed line sheets.</p>
       <div style="background:#fff;padding:16px;border-radius:12px;width:max-content">
@@ -1016,6 +1042,50 @@ function embedTab(host) {
   host.addEventListener('click', (event) => {
     if (event.target.dataset.copy) copy(event.target.dataset.copy);
   });
+
+  const status = document.getElementById('ex-status');
+  const link = document.getElementById('ex-get');
+  document.getElementById('ex-build').onclick = async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    link.hidden = true;
+    status.innerHTML = '<div class="progress"><span style="width:4%"></span></div>';
+    try {
+      const zoomWidth = document.getElementById('ex-zoom').value || null;
+      const { jobId } = await api(`/api/books/${state.book.id}/export`, {
+        method: 'POST',
+        body: { zoomWidth }
+      });
+      const source = new EventSource(`/admin/api/jobs/${jobId}/stream`);
+      source.onmessage = (message) => {
+        const job = JSON.parse(message.data);
+        status.innerHTML =
+          `<p class="card__hint" style="margin:0 0 6px">${esc(job.message)}</p>` +
+          `<div class="progress"><span style="width:${Math.round((job.progress || 0) * 100)}%"></span></div>`;
+        if (job.state === 'done') {
+          source.close();
+          button.disabled = false;
+          link.hidden = false;
+          const mb = (job.result.zipBytes / 1048576).toFixed(1);
+          status.innerHTML =
+            `<p class="card__hint" style="margin:0">Ready: <b>${esc(job.result.slug)}.zip</b>, ${mb} MB, ` +
+            `zoom images ${job.result.zoomWidth} px.</p>`;
+        }
+        if (job.state === 'failed') {
+          source.close();
+          button.disabled = false;
+          status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(job.message)}</p>`;
+        }
+      };
+      source.onerror = () => {
+        source.close();
+        button.disabled = false;
+      };
+    } catch (error) {
+      button.disabled = false;
+      status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(error.message)}</p>`;
+    }
+  };
 }
 
 /* insights -------------------------------------------------------- */

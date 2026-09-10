@@ -13,10 +13,11 @@ export const DATA_DIR = path.resolve(
 export const BOOKS_DIR = path.join(DATA_DIR, 'books');
 export const EVENTS_DIR = path.join(DATA_DIR, 'events');
 export const TMP_DIR = path.join(DATA_DIR, 'tmp');
+export const EXPORT_DIR = path.join(DATA_DIR, 'exports');
 export const LIBRARY_FILE = path.join(DATA_DIR, 'library.json');
 export const PUBLIC_DIR = path.join(ROOT, 'public');
 
-for (const dir of [DATA_DIR, BOOKS_DIR, EVENTS_DIR, TMP_DIR]) {
+for (const dir of [DATA_DIR, BOOKS_DIR, EVENTS_DIR, TMP_DIR, EXPORT_DIR]) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
