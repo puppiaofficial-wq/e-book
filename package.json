@@ -1,0 +1,21 @@
+{
+  "name": "ebook-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted e-book / digital catalog studio: PDF in, shareable web viewer out.",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "import": "node scripts/import.js",
+    "reset-admin": "node scripts/reset-admin.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "mupdf": "^1.28.1",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.4"
+  }
+}

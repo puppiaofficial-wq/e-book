@@ -1,0 +1,14 @@
+services:
+  ebook:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # The public address readers and buyers will use.
+      PUBLIC_BASE_URL: "https://catalog.example.com"
+      # Created on first start only; remove once the account exists.
+      ADMIN_EMAIL: "you@example.com"
+      ADMIN_PASSWORD: "change-this-password"
+    volumes:
+      - ./data:/data
