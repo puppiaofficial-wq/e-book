@@ -32,7 +32,7 @@ export function viewerPage({ book, manifest, origin, embed = false, shareToken =
 <div id="app" class="viewer" aria-busy="true"></div>
 <noscript><p style="color:#fff;font-family:${FONT_STACK};padding:2rem">This catalog viewer needs JavaScript enabled.</p></noscript>
 <script>window.__BOOK__ = ${boot};</script>
-<script type="module" src="/viewer/viewer.js"></script>
+<script src="/viewer/viewer.js"></script>
 </body>
 </html>`;
 }

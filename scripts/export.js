@@ -173,7 +173,7 @@ function staticViewer(book) {
 <div id="app" class="viewer" aria-busy="true"></div>
 <noscript><p style="color:#fff;padding:2rem;font:15px system-ui">This catalog viewer needs JavaScript enabled.</p></noscript>
 <script>window.__BOOK__ = ${boot};</script>
-<script type="module" src="viewer.js"></script>
+<script src="viewer.js"></script>
 </body>
 </html>`;
 }

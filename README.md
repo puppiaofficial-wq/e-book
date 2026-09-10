@@ -108,7 +108,8 @@ plain folder of HTML, CSS, JS and images that works on any static host, with
 contents, search, links and thumbnails intact. `--zoom 3600` re-renders the
 zoom tier larger to buy back magnification range, since a static host cannot
 render regions on demand. See [`docs/HOSTING-ko.md`](docs/HOSTING-ko.md) for
-the trade-offs against running the server.
+the trade-offs against running the server, and
+[`docs/CAFE24-ko.md`](docs/CAFE24-ko.md) for a step-by-step Cafe24 walkthrough.
 
 Bulk or scripted imports:
 
