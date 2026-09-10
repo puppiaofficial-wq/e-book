@@ -1,53 +1,76 @@
 @echo off
-chcp 65001 >nul
-title eBook Studio
+setlocal
 cd /d "%~dp0"
+title eBook Studio
 
 echo.
 echo   ==========================================
-echo    eBook Studio ì‹œìž‘
+echo    eBook Studio
 echo   ==========================================
 echo.
+
+if not exist package.json goto WRONGDIR
 
 where node >nul 2>nul
-if errorlevel 1 (
-  echo   [!] Node.js ê°€ ì„¤ì¹˜ë˜ì–´ ìžˆì§€ ì•ŠìŠµë‹ˆë‹¤.
-  echo.
-  echo   ë¸Œë¼ìš°ì €ì—ì„œ nodejs.org ë¥¼ ì—´ì–´ë“œë¦½ë‹ˆë‹¤.
-  echo   "LTS" ë²„ì „ì„ ë‚´ë ¤ë°›ì•„ ì„¤ì¹˜í•œ ë’¤, ì´ ì°½ì„ ë‹«ê³ 
-  echo   start.bat ì„ ë‹¤ì‹œ ì‹¤í–‰í•´ ì£¼ì„¸ìš”.
-  echo.
-  start https://nodejs.org/ko/download
-  pause
-  exit /b 1
-)
+if errorlevel 1 goto NONODE
 
-if not exist node_modules (
-  echo   ìµœì´ˆ ì‹¤í–‰ ì¤€ë¹„ ì¤‘ìž…ë‹ˆë‹¤. 1~3ë¶„ ì •ë„ ê±¸ë¦½ë‹ˆë‹¤...
-  echo.
-  call npm install
-  if errorlevel 1 (
-    echo.
-    echo   [!] ì¤€ë¹„ ì¤‘ ì˜¤ë¥˜ê°€ ë°œìƒí–ˆìŠµë‹ˆë‹¤. ì¸í„°ë„· ì—°ê²°ì„ í™•ì¸í•´ ì£¼ì„¸ìš”.
-    pause
-    exit /b 1
-  )
-)
+if exist node_modules goto SKIPINSTALL
+echo   [1/3] ÃÖÃÊ ½ÇÇà ÁØºñ ÁßÀÔ´Ï´Ù. 1~3ºÐ Á¤µµ °É¸³´Ï´Ù.
+echo         ÀÌ ´Ü°è´Â Ã³À½ ÇÑ ¹ø¸¸ ½ÇÇàµË´Ï´Ù.
+echo.
+call npm install
+if errorlevel 1 goto INSTALLFAIL
+:SKIPINSTALL
 
 echo.
-echo   catalogs í´ë”ì˜ PDFë¥¼ í™•ì¸í•©ë‹ˆë‹¤...
+echo   [2/3] catalogs Æú´õÀÇ PDF¸¦ È®ÀÎÇÕ´Ï´Ù.
 echo.
 call npm run --silent autoimport
 
 echo.
-echo   ------------------------------------------
-echo    ê´€ë¦¬ìž í™”ë©´ : http://localhost:8080/admin
-echo    ì¹´íƒˆë¡œê·¸ ëª©ë¡ : http://localhost:8080/library
+echo   [3/3] ¼­¹ö¸¦ ½ÃÀÛÇÕ´Ï´Ù.
 echo.
-echo    ì´ ì°½ì„ ë‹«ìœ¼ë©´ ì„œë²„ê°€ ì¢…ë£Œë©ë‹ˆë‹¤.
+echo   ------------------------------------------
+echo    °ü¸®ÀÚ È­¸é   : http://localhost:8080/admin
+echo    Ä«Å»·Î±× ¸ñ·Ï : http://localhost:8080/library
+echo.
+echo    ÀÌ Ã¢À» ´ÝÀ¸¸é ¼­ºñ½º°¡ Á¾·áµË´Ï´Ù.
 echo   ------------------------------------------
 echo.
 
-start http://localhost:8080/admin
+start "" http://localhost:8080/admin
 node server/index.js
+
+echo.
+echo   ¼­¹ö°¡ Á¾·áµÇ¾ú½À´Ï´Ù.
 pause
+goto END
+
+:WRONGDIR
+echo   [!] ÀÌ Æú´õ¿¡¼­´Â ½ÇÇàÇÒ ¼ö ¾ø½À´Ï´Ù.
+echo.
+echo   ¾ÐÃàÀ» Ç¬ Æú´õ ¾È¿¡ Æú´õ°¡ ÇÏ³ª ´õ µé¾î ÀÖ´Â °æ¿ì°¡ ÀÖ½À´Ï´Ù.
+echo   package.json ÆÄÀÏÀÌ ÇÔ²² º¸ÀÌ´Â Æú´õÀÇ start.bat À» ½ÇÇàÇØ ÁÖ¼¼¿ä.
+echo.
+pause
+goto END
+
+:NONODE
+echo   [!] Node.js °¡ ¼³Ä¡µÇ¾î ÀÖÁö ¾Ê½À´Ï´Ù.
+echo.
+echo   ºê¶ó¿ìÀú¿¡¼­ nodejs.org ¸¦ ¿±´Ï´Ù.
+echo   LTS ¹öÀüÀ» ¼³Ä¡ÇÏ°í ÄÄÇ»ÅÍ¸¦ Àç½ÃÀÛÇÑ µÚ
+echo   start.bat À» ´Ù½Ã ½ÇÇàÇØ ÁÖ¼¼¿ä.
+echo.
+start "" https://nodejs.org/ko/download
+pause
+goto END
+
+:INSTALLFAIL
+echo.
+echo   [!] ÁØºñ Áß ¿À·ù°¡ ¹ß»ýÇß½À´Ï´Ù.
+echo       ÀÎÅÍ³Ý ¿¬°áÀ» È®ÀÎÇÑ µÚ ´Ù½Ã ½ÇÇàÇØ ÁÖ¼¼¿ä.
+pause
+goto END
+
+:END
