@@ -1,4 +1,5 @@
 import { escapeHtml } from './util.js';
+import { VERSION } from './config.js';
 import * as store from './store.js';
 
 const FONT_STACK = `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
@@ -26,13 +27,33 @@ export function viewerPage({ book, manifest, origin, embed = false, shareToken =
 <meta name="theme-color" content="${escapeHtml(manifest.appearance.background || '#111315')}">
 <link rel="icon" href="/assets/favicon.svg">
 <link rel="preload" as="image" href="/media/${book.id}/pages/p0001.webp" fetchpriority="high">
-<link rel="stylesheet" href="/viewer/viewer.css">
+<link rel="stylesheet" href="/viewer/viewer.css?v=${VERSION}">
 </head>
 <body class="${embed ? 'is-embed' : ''}">
 <div id="app" class="viewer" aria-busy="true"></div>
 <noscript><p style="color:#fff;font-family:${FONT_STACK};padding:2rem">This catalog viewer needs JavaScript enabled.</p></noscript>
 <script>window.__BOOK__ = ${boot};</script>
-<script src="/viewer/viewer.js"></script>
+<script src="/viewer/viewer.js?v=${VERSION}"></script>
+</body>
+</html>`;
+}
+
+/** The console shell, stamped so a browser can never serve yesterday's build. */
+export function adminPage() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eBook Studio</title>
+<meta name="robots" content="noindex">
+<meta name="app-version" content="${VERSION}">
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/admin/assets/admin.css?v=${VERSION}">
+</head>
+<body>
+<div id="root" class="boot"><div class="spinner"></div></div>
+<script type="module" src="/admin/assets/admin.js?v=${VERSION}"></script>
 </body>
 </html>`;
 }

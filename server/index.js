@@ -1,10 +1,11 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
-import { PORT, PUBLIC_DIR, DATA_DIR, PUBLIC_BASE_URL } from './config.js';
+import { PORT, PUBLIC_DIR, DATA_DIR, PUBLIC_BASE_URL, VERSION } from './config.js';
 import * as store from './store.js';
 import { hashPassword, currentAdmin } from './auth.js';
 import { nowIso } from './util.js';
+import { adminPage } from './pages.js';
 import { router as publicRouter } from './routes/public.js';
 import { router as adminRouter } from './routes/admin.js';
 
@@ -36,7 +37,7 @@ app.use('/admin', adminRouter);
 app.get(/^\/admin(\/.*)?$/, (req, res, next) => {
   if (req.path.startsWith('/admin/api')) return next();
   res.set('Cache-Control', 'no-cache');
-  res.type('html').sendFile(path.join(PUBLIC_DIR, 'admin', 'index.html'));
+  res.type('html').send(adminPage());
 });
 
 app.use('/', publicRouter);
@@ -65,8 +66,8 @@ if (!store.admin() && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
   console.log(`[setup] admin account created for ${process.env.ADMIN_EMAIL}`);
 }
 
-app.listen(PORT, () => {
-  console.log(`\n  eBook Studio`);
+const server = app.listen(PORT, () => {
+  console.log(`\n  eBook Studio  v${VERSION}`);
   console.log(`  ------------------------------------------`);
   console.log(`  Viewer / library : http://localhost:${PORT}/`);
   console.log(`  Admin console    : http://localhost:${PORT}/admin`);
@@ -74,4 +75,13 @@ app.listen(PORT, () => {
   if (PUBLIC_BASE_URL) console.log(`  Public base URL  : ${PUBLIC_BASE_URL}`);
   else console.log(`  Public base URL  : (derived from request host - set PUBLIC_BASE_URL in production)`);
   console.log(`  ------------------------------------------\n`);
+});
+
+server.on('error', (error) => {
+  if (error.code !== 'EADDRINUSE') throw error;
+  console.error(`\n  [!] 포트 ${PORT} 을 이미 다른 프로그램이 쓰고 있습니다.`);
+  console.error('      예전에 켜 둔 검은 창이 남아 있을 가능성이 높습니다.');
+  console.error('      그 창을 모두 닫고 start.bat 을 다시 실행해 주세요.');
+  console.error('      (또는 .env 파일에서 PORT 를 8090 등으로 바꾸셔도 됩니다.)\n');
+  process.exit(1);
 });

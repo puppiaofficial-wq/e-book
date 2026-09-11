@@ -14,6 +14,12 @@ if not exist package.json goto WRONGDIR
 where node >nul 2>nul
 if errorlevel 1 goto NONODE
 
+set EBPORT=8080
+set RUNNING=
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":%EBPORT%" ^| findstr LISTENING') do set RUNNING=%%a
+if defined RUNNING goto INUSE
+
+:READY
 if exist node_modules goto SKIPINSTALL
 echo   [1/3] 최초 실행 준비 중입니다. 1~3분 정도 걸립니다.
 echo         이 단계는 처음 한 번만 실행됩니다.
@@ -31,18 +37,37 @@ echo.
 echo   [3/3] 서버를 시작합니다.
 echo.
 echo   ------------------------------------------
-echo    관리자 화면   : http://localhost:8080/admin
-echo    카탈로그 목록 : http://localhost:8080/library
+echo    관리자 화면   : http://localhost:%EBPORT%/admin
+echo    카탈로그 목록 : http://localhost:%EBPORT%/library
 echo.
 echo    이 창을 닫으면 서비스가 종료됩니다.
 echo   ------------------------------------------
 echo.
 
-start "" http://localhost:8080/admin
+start "" http://localhost:%EBPORT%/admin
 node server/index.js
 
 echo.
 echo   서버가 종료되었습니다.
+pause
+goto END
+
+:INUSE
+echo   [!] eBook Studio 가 이미 실행 중입니다.
+echo.
+echo   예전에 열어 둔 검은 창이 남아 있으면 그 창의 옛날 프로그램이
+echo   계속 돌아갑니다. 새로 받은 버전이 적용되지 않습니다.
+echo.
+choice /c YN /n /m "   예전 것을 종료하고 새로 시작할까요?  [Y] 예   [N] 아니요 : "
+echo.
+if errorlevel 2 goto KEEPOLD
+taskkill /F /PID %RUNNING% >nul 2>nul
+echo   예전 프로그램을 종료했습니다.
+echo.
+goto READY
+
+:KEEPOLD
+echo   그대로 두었습니다. 예전 창을 직접 닫은 뒤 다시 실행해 주세요.
 pause
 goto END
 
