@@ -53,11 +53,15 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
 
   // Flattened artwork has no vector text to gain from a bigger render, so the
   // source images set the ceiling. A little headroom absorbs the estimate.
-  const nativeWidth = sourceWidth
-    ? Math.round((splitDecision[0] ? sourceWidth / 2 : sourceWidth) * 1.15)
-    : null;
+  const nativeWidth = sourceWidth ? Math.round(splitDecision[0] ? sourceWidth / 2 : sourceWidth) : null;
   if (!anyText && nativeWidth) {
-    target.zoom = Math.max(1600, Math.min(target.zoom, nativeWidth));
+    target.zoom = Math.min(target.zoom, nativeWidth);
+    target.view = Math.min(target.view, target.zoom);
+  }
+  // An explicit override wins over both, for the rare page the measurement
+  // reads wrong: the operator can see the result and judge.
+  if (opts.zoomWidth) {
+    target.zoom = Math.min(6000, Math.max(1200, Math.round(opts.zoomWidth)));
     target.view = Math.min(target.view, target.zoom);
   }
 

@@ -773,13 +773,18 @@ function openZoom() {
  * limit is the source image; for vector pages the server can render any size.
  */
 function maxScale(pageCssWidth) {
+  // A publisher who overrode the render width meant to zoom that far, so the
+  // stored image counts too when it is larger than the measurement.
   const ceiling = BOOK.sizes?.native
-    || (BOOK.capabilities.hires ? null : BOOK.sizes?.zoom || 2400);
+    ? Math.max(BOOK.sizes.native, BOOK.sizes.zoom || 0)
+    : (BOOK.capabilities.hires ? null : BOOK.sizes?.zoom || 2400);
   if (!ceiling) return 8;
   const dpr = Math.min(3, window.devicePixelRatio || 1);
-  // A modest single upscale past the source still reads well and keeps zoom
-  // useful; the renderer itself never goes above the source resolution.
-  return Math.max(1.4, Math.min(8, (ceiling * 1.6) / dpr / pageCssWidth));
+  // Stop at one screen pixel per source pixel, where the page is at its
+  // sharpest. Only a screen dense enough to make that too small to be useful
+  // is allowed a little upscale on top.
+  const oneToOne = ceiling / dpr / pageCssWidth;
+  return Math.max(1.4, Math.min(8, Math.max(oneToOne, 2)));
 }
 
 function closeZoom() {
@@ -847,7 +852,9 @@ function requestHires() {
       h: (bottom - top + padY * 2) / box.height
     });
 
-    const ceiling = BOOK.sizes?.native ? Math.round(BOOK.sizes.native * rect.w) : HIRES_MAX_PX;
+    const ceiling = BOOK.sizes?.native
+      ? Math.round(Math.max(BOOK.sizes.native, BOOK.sizes.zoom || 0) * rect.w)
+      : HIRES_MAX_PX;
     const pixels = Math.min(
       HIRES_MAX_PX,
       ceiling,

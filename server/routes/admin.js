@@ -12,6 +12,7 @@ import {
 import { bookDir, scheduleState, canRenderHires } from '../access.js';
 import { convertPdf, convertImages, pagesRecord } from '../convert.js';
 import { exportBook, zipFolder, exportPathsFor } from '../export.js';
+import { forgetDocument } from '../hires.js';
 import { createJob, enqueue, subscribe, getJob } from '../jobs.js';
 import { summarise } from '../analytics.js';
 import { invalidateText } from './public.js';
@@ -183,6 +184,39 @@ router.post('/api/books/:id/duplicate', wrap(async (req, res) => {
   await fsp.cp(bookDir(book.id), bookDir(copy.id), { recursive: true });
   await store.addBook(copy);
   res.json({ book: summaryOf(copy) });
+}));
+
+/**
+ * Re-runs conversion on the PDF already stored, optionally at a chosen zoom
+ * width. Contents, links and share links are untouched.
+ */
+router.post('/api/books/:id/rerender', wrap(async (req, res) => {
+  const book = store.bookById(req.params.id);
+  if (!book) return res.status(404).json({ error: 'Not found' });
+  const pdfPath = path.join(bookDir(book.id), 'source.pdf');
+  if (!fs.existsSync(pdfPath)) {
+    return res.status(409).json({ error: 'This catalog was not imported from a PDF, so there is nothing to re-render.' });
+  }
+  const zoomWidth = req.body?.zoomWidth ? Number(req.body.zoomWidth) : null;
+  const job = createJob(`${book.title} (re-render)`);
+
+  enqueue(job, async (report) => {
+    const outcome = await convertPdf(
+      pdfPath,
+      bookDir(book.id),
+      { splitSpreads: 'auto', zoomWidth },
+      ({ done, total }) => report({
+        progress: 0.03 + 0.94 * (done / total),
+        message: `Rendering page ${done} of ${total}`
+      })
+    );
+    await store.updateBook(book.id, { pages: pagesRecord(outcome.manifest) });
+    invalidateText(book.id);
+    forgetDocument(book.id);
+    return { width: outcome.manifest.width, native: outcome.manifest.sizes.native };
+  });
+
+  res.status(202).json({ jobId: job.id });
 }));
 
 /* ----------------------------------------------------------- export */

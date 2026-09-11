@@ -463,6 +463,24 @@ function overviewTab(host) {
         Rendering larger would only invent pixels, so the viewer stops magnifying there.
         To go sharper, export the PDF with live text or higher-resolution images.
       </p>` : ''}
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:18px">
+        <div class="field" style="margin:0;min-width:230px">
+          <label for="rr-zoom">Page image width</label>
+          <select id="rr-zoom">
+            <option value="">Measured from the PDF — recommended</option>
+            <option value="2400">2400 px</option>
+            <option value="3000">3000 px</option>
+            <option value="3600">3600 px</option>
+            <option value="4400">4400 px</option>
+          </select>
+        </div>
+        <button class="btn" id="rr-go">Re-render pages</button>
+      </div>
+      <p class="card__hint" style="margin:8px 0 0">
+        Contents, page links and share links are kept. Choosing a width above the
+        measured one will not add detail; it only makes the files bigger.
+      </p>
+      <div id="rr-status" style="margin-top:12px"></div>
     </div>
 
     <div class="card">
@@ -491,6 +509,39 @@ function overviewTab(host) {
     });
     await loadLibrary();
     render();
+  };
+
+  const rrStatus = document.getElementById('rr-status');
+  document.getElementById('rr-go').onclick = async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    rrStatus.innerHTML = '<div class="progress"><span style="width:4%"></span></div>';
+    try {
+      const zoomWidth = document.getElementById('rr-zoom').value || null;
+      const { jobId } = await api(`/api/books/${state.book.id}/rerender`, { method: 'POST', body: { zoomWidth } });
+      const source = new EventSource(`/admin/api/jobs/${jobId}/stream`);
+      source.onmessage = async (message) => {
+        const job = JSON.parse(message.data);
+        rrStatus.innerHTML =
+          `<p class="card__hint" style="margin:0 0 6px">${esc(job.message)}</p>` +
+          `<div class="progress"><span style="width:${Math.round((job.progress || 0) * 100)}%"></span></div>`;
+        if (job.state === 'done') {
+          source.close();
+          await loadBook(state.book.id);
+          toast('Pages re-rendered');
+          render();
+        }
+        if (job.state === 'failed') {
+          source.close();
+          button.disabled = false;
+          rrStatus.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(job.message)}</p>`;
+        }
+      };
+      source.onerror = () => { source.close(); button.disabled = false; };
+    } catch (error) {
+      button.disabled = false;
+      rrStatus.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(error.message)}</p>`;
+    }
   };
 
   const input = document.getElementById('replaceInput');
