@@ -1,6 +1,6 @@
 # eBook Studio
 
-**버전 1.3.0** — 내려받기 전 확인용. 관리자 화면 왼쪽 아래와 실행 창 맨 윗줄에
+**버전 1.4.0** — 내려받기 전 확인용. 관리자 화면 왼쪽 아래와 실행 창 맨 윗줄에
 같은 번호가 보이면 최신 버전이 돌고 있는 것입니다.
 
 A self-hosted digital-catalog platform: drop in a PDF, get a fast web viewer you

@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
-import { PORT, PUBLIC_DIR, DATA_DIR, PUBLIC_BASE_URL, VERSION } from './config.js';
+import { PORT, PUBLIC_DIR, DATA_DIR, PUBLIC_BASE_URL, VERSION, EXPORT_DIR } from './config.js';
 import * as store from './store.js';
 import { hashPassword, currentAdmin } from './auth.js';
 import { nowIso } from './util.js';
@@ -30,6 +30,14 @@ const appCode = { etag: true, maxAge: 0, setHeaders: (res) => res.setHeader('Cac
 app.use('/viewer', express.static(path.join(PUBLIC_DIR, 'viewer'), appCode));
 app.use('/admin/assets', express.static(path.join(PUBLIC_DIR, 'admin'), appCode));
 app.use('/assets', express.static(path.join(PUBLIC_DIR, 'assets'), { maxAge: '7d' }));
+
+/* The exported bundle, served exactly as a static host would. Opening this
+   proves whether a publishing problem is in the files or in the hosting. */
+app.use('/export-preview', (req, res, next) => {
+  if (!currentAdmin(req)) return res.redirect('/admin');
+  res.set('Cache-Control', 'no-cache');
+  next();
+}, express.static(EXPORT_DIR, { index: 'index.html', extensions: false }));
 
 app.use('/admin', adminRouter);
 

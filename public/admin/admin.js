@@ -1088,6 +1088,7 @@ function embedTab(host) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn--primary" id="ex-build">Prepare download</button>
         <a class="btn" id="ex-get" href="/admin/api/books/${state.book.id}/export.zip" hidden>Download .zip</a>
+        <a class="btn" id="ex-preview" href="/export-preview/${esc(state.book.slug)}/" target="_blank" rel="noopener" hidden>Open the exported files ↗</a>
       </div>
       <div id="ex-status" style="margin-top:14px"></div>
     </div>
@@ -1111,6 +1112,7 @@ function embedTab(host) {
     const button = event.currentTarget;
     button.disabled = true;
     link.hidden = true;
+    document.getElementById('ex-preview').hidden = true;
     status.innerHTML = '<div class="progress"><span style="width:4%"></span></div>';
     try {
       const zoomWidth = document.getElementById('ex-zoom').value || null;
@@ -1128,10 +1130,12 @@ function embedTab(host) {
           source.close();
           button.disabled = false;
           link.hidden = false;
+          document.getElementById('ex-preview').hidden = false;
           const mb = (job.result.zipBytes / 1048576).toFixed(1);
           status.innerHTML =
             `<p class="card__hint" style="margin:0">Ready: <b>${esc(job.result.slug)}.zip</b>, ${mb} MB, ` +
-            `zoom images ${job.result.zoomWidth} px.</p>`;
+            `zoom images ${job.result.zoomWidth} px. ` +
+            `Open the exported files first — if they work here, the bundle is fine and any problem is with the host.</p>`;
         }
         if (job.state === 'failed') {
           source.close();
