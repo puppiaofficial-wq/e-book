@@ -16,6 +16,7 @@ import { forgetDocument } from '../hires.js';
 import { createJob, enqueue, subscribe, getJob } from '../jobs.js';
 import { summarise } from '../analytics.js';
 import { invalidateText } from './public.js';
+import { deployFolder, projectNameFor, verify as verifyCloudflare } from '../cloudflare.js';
 
 export const router = express.Router();
 
@@ -28,12 +29,24 @@ router.use(express.json({ limit: '4mb' }));
 
 /* ---------------------------------------------------------- session */
 
+/** The API token is write-only: the browser is told whether one is set, never what it is. */
+function safeSettings() {
+  const { cloudflare, ...rest } = store.settings();
+  return {
+    ...rest,
+    cloudflare: {
+      accountId: cloudflare?.accountId || '',
+      hasToken: Boolean(cloudflare?.apiToken)
+    }
+  };
+}
+
 router.get('/api/session', (req, res) => {
   const account = store.admin();
   res.json({
     configured: Boolean(account),
     admin: currentAdmin(req),
-    settings: account ? store.settings() : null,
+    settings: account ? safeSettings() : null,
     baseUrl: originOf(req, PUBLIC_BASE_URL),
     version: VERSION
   });
@@ -251,6 +264,7 @@ router.post('/api/books/:id/export', wrap(async (req, res) => {
       bytes: result.bytes,
       zipBytes,
       zoomWidth: result.zoomWidth,
+      pdfSkipped: result.pdfSkipped,
       folder: result.dir
     };
   });
@@ -326,8 +340,94 @@ router.delete('/api/collections/:id', wrap(async (req, res) => {
 /* --------------------------------------------------------- settings */
 
 router.patch('/api/settings', wrap(async (req, res) => {
-  res.json({ settings: await store.updateSettings(req.body || {}) });
+  const patch = { ...(req.body || {}) };
+  if (patch.cloudflare) {
+    const current = store.settings().cloudflare || {};
+    const next = { ...current, ...patch.cloudflare };
+    // An empty token field means "leave the saved one alone"; clearing is
+    // explicit, through the separate disconnect route below.
+    if (!String(patch.cloudflare.apiToken || '').trim()) next.apiToken = current.apiToken || '';
+    patch.cloudflare = next;
+  }
+  await store.updateSettings(patch);
+  res.json({ settings: safeSettings() });
 }));
+
+/* ------------------------------------------------------- cloudflare */
+
+router.post('/api/cloudflare/test', wrap(async (req, res) => {
+  const { accountId, apiToken } = cloudflareCredentials();
+  if (!accountId || !apiToken) {
+    return res.status(400).json({ error: 'Enter the account ID and an API token first.' });
+  }
+  try {
+    await verifyCloudflare({ accountId, apiToken });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: cloudflareHint(error) });
+  }
+}));
+
+router.post('/api/cloudflare/disconnect', wrap(async (req, res) => {
+  await store.updateSettings({ cloudflare: { accountId: '', apiToken: '' } });
+  res.json({ settings: safeSettings() });
+}));
+
+router.post('/api/books/:id/deploy', wrap(async (req, res) => {
+  const book = store.bookById(req.params.id);
+  if (!book) return res.status(404).json({ error: 'Not found' });
+
+  const { accountId, apiToken } = cloudflareCredentials();
+  if (!accountId || !apiToken) {
+    return res.status(409).json({ error: 'Connect a Cloudflare account under Settings first.' });
+  }
+  const { dir } = exportPathsFor(book);
+  if (!fs.existsSync(dir)) {
+    return res.status(409).json({ error: 'Prepare the download first, then deploy.' });
+  }
+
+  const projectName = projectNameFor(req.body?.projectName || book.slug);
+  const job = createJob(`${book.title} (deploy)`);
+
+  enqueue(job, async (report) => {
+    report({ progress: 0.04, message: 'Connecting to Cloudflare' });
+    try {
+      const result = await deployFolder({
+        accountId,
+        apiToken,
+        projectName,
+        dir,
+        onProgress: ({ stage, done, total }) => report({
+          progress: total ? 0.1 + 0.85 * (done / total) : 0.1,
+          message: total && stage === 'Uploading' ? `Uploading ${done} of ${total} files` : stage
+        })
+      });
+      return { ...result, bookId: book.id };
+    } catch (error) {
+      throw new Error(cloudflareHint(error));
+    }
+  });
+
+  res.status(202).json({ jobId: job.id });
+}));
+
+/** Credentials come from the saved settings; the body may only name the project. */
+function cloudflareCredentials() {
+  const saved = store.settings().cloudflare || {};
+  return { accountId: (saved.accountId || '').trim(), apiToken: (saved.apiToken || '').trim() };
+}
+
+/** Cloudflare's own wording is terse; these are the two mistakes people make. */
+function cloudflareHint(error) {
+  const message = error?.message || 'Cloudflare refused the request.';
+  if (error?.status === 403 || error?.code === 10000) {
+    return `${message} — check that the API token has the "Cloudflare Pages: Edit" permission and that the account ID is right.`;
+  }
+  if (error?.status === 401) {
+    return `${message} — the API token was rejected. Create a new one and paste it again.`;
+  }
+  return message;
+}
 
 /* -------------------------------------------------------- analytics */
 

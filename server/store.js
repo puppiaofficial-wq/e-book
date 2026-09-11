@@ -12,7 +12,10 @@ const EMPTY = {
     logoUrl: '',
     publicLibrary: true,
     contactEmail: '',
-    footerNote: ''
+    footerNote: '',
+    // Cloudflare Pages credentials, so publishing is one button rather than a
+    // download, a dashboard visit and a drag. The token never leaves this file.
+    cloudflare: { accountId: '', apiToken: '' }
   },
   collections: [],
   books: [],
@@ -20,7 +23,14 @@ const EMPTY = {
 };
 
 let db = readJson(LIBRARY_FILE, null) || structuredClone(EMPTY);
-db = { ...structuredClone(EMPTY), ...db };
+// Settings gain keys between versions, so an existing file is filled in rather
+// than replaced: a library saved before a setting existed still gets its default.
+const base = structuredClone(EMPTY);
+db = {
+  ...base,
+  ...db,
+  settings: { ...base.settings, ...(db.settings || {}), cloudflare: { ...base.settings.cloudflare, ...(db.settings?.cloudflare || {}) } }
+};
 
 let writing = null;
 let queued = false;

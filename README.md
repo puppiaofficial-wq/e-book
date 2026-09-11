@@ -1,6 +1,6 @@
 # eBook Studio
 
-**버전 2.1.0** — 내려받기 전 확인용. 관리자 화면 왼쪽 아래와 실행 창 맨 윗줄에
+**버전 2.2.0** — 내려받기 전 확인용. 관리자 화면 왼쪽 아래와 실행 창 맨 윗줄에
 같은 번호가 보이면 최신 버전이 돌고 있는 것입니다.
 
 A self-hosted digital-catalog platform: drop in a PDF, get a fast web viewer you
@@ -109,12 +109,20 @@ Lost the password: `npm run reset-admin -- you@example.com newpassword`.
 
 Publish without a server: the *Embed on your site* tab builds the catalog into
 a single `.zip` of HTML, CSS, JS and images that works on any static host, with
-contents, search, links and thumbnails intact - drop it straight onto Cloudflare
-Pages. `npm run export` does the same from the command line, where `--zoom`
-re-renders the zoom tier at a chosen width for catalogs whose PDF holds more
-detail than the stored images do.
+contents, search, links and thumbnails intact. Connect a Cloudflare account once
+under *Settings* and **Publish to Cloudflare** uploads it straight from here -
+no zip, no dashboard, no dragging. The project is created on the first deploy,
+and later deploys send only the files that changed. `npm run export` does the
+same build from the command line, where `--zoom` re-renders the zoom tier at a
+chosen width for catalogs whose PDF holds more detail than the stored images do.
 
-Walkthroughs: [`docs/CLOUDFLARE-ko.md`](docs/CLOUDFLARE-ko.md) (recommended),
+Static hosts cap single files - Cloudflare Pages at 25 MB - so a print-ready
+source PDF is left out of the bundle rather than making the whole thing
+unpublishable, and the export says so. The catalog itself is unaffected.
+
+Walkthroughs: [`docs/DEPLOY-ko.md`](docs/DEPLOY-ko.md) (one-button publishing),
+[`docs/AUTOSTART-ko.md`](docs/AUTOSTART-ko.md) (run without opening a window),
+[`docs/CLOUDFLARE-ko.md`](docs/CLOUDFLARE-ko.md) (manual upload),
 [`docs/CAFE24-ko.md`](docs/CAFE24-ko.md), and
 [`docs/HOSTING-ko.md`](docs/HOSTING-ko.md) for the trade-offs against running
 the server.

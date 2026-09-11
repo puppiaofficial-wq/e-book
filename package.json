@@ -1,6 +1,6 @@
 {
   "name": "ebook-studio",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "Self-hosted e-book / digital catalog studio: PDF in, shareable web viewer out.",
@@ -16,6 +16,7 @@
     "export": "node scripts/export.js"
   },
   "dependencies": {
+    "blake3-wasm": "^2.1.5",
     "express": "^5.1.0",
     "multer": "^2.0.2",
     "mupdf": "^1.28.1",

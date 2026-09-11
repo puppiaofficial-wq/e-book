@@ -1089,10 +1089,12 @@ function embedTab(host) {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn--primary" id="ex-build">Prepare download</button>
+        <button class="btn btn--primary" id="ex-deploy" hidden>Publish to Cloudflare</button>
         <a class="btn" id="ex-get" href="/admin/api/books/${state.book.id}/export.zip" hidden>Download .zip</a>
         <a class="btn" id="ex-preview" href="/export-preview/${esc(state.book.slug)}/" target="_blank" rel="noopener" hidden>Open the exported files ↗</a>
       </div>
       <div id="ex-status" style="margin-top:14px"></div>
+      <div id="ex-live" style="margin-top:10px"></div>
     </div>
 
     <div class="card">
@@ -1110,10 +1112,15 @@ function embedTab(host) {
 
   const status = document.getElementById('ex-status');
   const link = document.getElementById('ex-get');
+  const deploy = document.getElementById('ex-deploy');
+  const live = document.getElementById('ex-live');
   document.getElementById('ex-build').onclick = async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
     link.hidden = true;
+    deploy.hidden = true;
+    button.classList.add('btn--primary');
+    live.innerHTML = '';
     document.getElementById('ex-preview').hidden = true;
     status.innerHTML = '<div class="progress"><span style="width:4%"></span></div>';
     try {
@@ -1133,11 +1140,21 @@ function embedTab(host) {
           button.disabled = false;
           link.hidden = false;
           document.getElementById('ex-preview').hidden = false;
+          deploy.hidden = false;
+          // Publishing is the next thing to do, so it takes over as the
+          // primary action once there is something to publish.
+          button.classList.remove('btn--primary');
           const mb = (job.result.zipBytes / 1048576).toFixed(1);
+          const dropped = job.result.pdfSkipped;
           status.innerHTML =
             `<p class="card__hint" style="margin:0">Ready: <b>${esc(job.result.slug)}.zip</b>, ${mb} MB, ` +
             `zoom images ${job.result.zoomWidth} px. ` +
-            `Open the exported files first — if they work here, the bundle is fine and any problem is with the host.</p>`;
+            `Open the exported files first — if they work here, the bundle is fine and any problem is with the host.</p>` +
+            (dropped
+              ? `<p class="card__hint" style="margin:8px 0 0;color:#b6741a">The PDF download was left out: ` +
+                `<b>${esc(dropped.name)}</b> is ${(dropped.bytes / 1048576).toFixed(0)} MB and static hosts accept files up to 25 MB. ` +
+                `The catalog itself is unaffected. To offer the PDF, host it elsewhere and link to it, or turn the download off under Publish &amp; access.</p>`
+              : '');
         }
         if (job.state === 'failed') {
           source.close();
@@ -1151,6 +1168,60 @@ function embedTab(host) {
       };
     } catch (error) {
       button.disabled = false;
+      status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(error.message)}</p>`;
+    }
+  };
+
+  deploy.onclick = async () => {
+    // Without a connected account there is nothing to deploy with, so the next
+    // best thing is to put the operator on the right Cloudflare page with the
+    // zip already in hand.
+    if (!state.session.settings?.cloudflare?.hasToken) {
+      window.open('https://dash.cloudflare.com/?to=/:account/workers-and-pages/create/pages', '_blank', 'noopener');
+      live.innerHTML =
+        `<p class="card__hint" style="margin:0">Cloudflare is not connected yet, so its upload page opened in a new tab. ` +
+        `Download the .zip and drop it there. To make this one button instead, connect an account under ` +
+        `<a href="#/settings">Settings</a>.</p>`;
+      return;
+    }
+
+    deploy.disabled = true;
+    live.innerHTML = '';
+    status.innerHTML = '<div class="progress"><span style="width:4%"></span></div>';
+    try {
+      const { jobId } = await api(`/api/books/${state.book.id}/deploy`, { method: 'POST', body: {} });
+      const source = new EventSource(`/admin/api/jobs/${jobId}/stream`);
+      source.onmessage = (message) => {
+        const job = JSON.parse(message.data);
+        status.innerHTML =
+          `<p class="card__hint" style="margin:0 0 6px">${esc(job.message)}</p>` +
+          `<div class="progress"><span style="width:${Math.round((job.progress || 0) * 100)}%"></span></div>`;
+        if (job.state === 'done') {
+          source.close();
+          deploy.disabled = false;
+          const { liveUrl, uploaded, reused } = job.result;
+          const what = uploaded
+            ? `${uploaded} file${uploaded === 1 ? '' : 's'} uploaded${reused ? `, ${reused} unchanged` : ''}`
+            : `nothing had changed, so all ${reused} files were reused`;
+          status.innerHTML = `<p class="card__hint" style="margin:0">Published — ${what}. ` +
+            `It can take a few seconds to go live.</p>`;
+          live.innerHTML =
+            `<div class="copybox"><input type="text" readonly value="${esc(liveUrl)}">` +
+            `<button class="btn" data-copy="${esc(liveUrl)}">Copy</button></div>` +
+            `<a class="btn btn--sm" style="margin-top:8px" href="${esc(liveUrl)}" target="_blank" rel="noopener">Open the live catalog ↗</a>`;
+        }
+        if (job.state === 'failed') {
+          source.close();
+          deploy.disabled = false;
+          status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(job.message)}</p>`;
+        }
+      };
+      source.onerror = () => {
+        source.close();
+        deploy.disabled = false;
+      };
+    } catch (error) {
+      deploy.disabled = false;
       status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(error.message)}</p>`;
     }
   };
@@ -1227,6 +1298,32 @@ function settingsView() {
     </div>
 
     <div class="card">
+      <h2>Cloudflare Pages</h2>
+      <p class="card__hint">
+        Connect an account once and the <b>Publish to Cloudflare</b> button on each catalog
+        uploads it for you — no zip, no dashboard, no dragging. Hosting stays free.
+      </p>
+      <div class="grid2">
+        <div class="field">
+          <label for="cf-account">Account ID</label>
+          <input id="cf-account" type="text" value="${esc(s.cloudflare?.accountId || '')}" placeholder="32 hex characters">
+          <span class="hint">Cloudflare dashboard → Workers &amp; Pages → the ID shown in the right column.</span>
+        </div>
+        <div class="field">
+          <label for="cf-token">API token</label>
+          <input id="cf-token" type="password" autocomplete="off" placeholder="${s.cloudflare?.hasToken ? 'Saved — leave empty to keep it' : 'Paste the token here'}">
+          <span class="hint">My Profile → API Tokens → Create Token → Custom token, with permission <b>Account · Cloudflare Pages · Edit</b>.</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn--primary" id="cf-save">Save and test</button>
+        ${s.cloudflare?.hasToken ? '<button class="btn btn--ghost" id="cf-off">Disconnect</button>' : ''}
+        <a class="btn btn--sm" href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener">Open the token page ↗</a>
+      </div>
+      <div id="cf-status" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
       <h2>Collections</h2>
       <p class="card__hint">Collections group catalogs on the library page.</p>
       ${state.collections.length ? `<table><tbody>${state.collections.map((c) => `
@@ -1260,6 +1357,40 @@ function settingsView() {
     });
     state.session = await api('/api/session');
     toast('Settings saved');
+  };
+
+  const cfStatus = document.getElementById('cf-status');
+  document.getElementById('cf-save').onclick = async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    cfStatus.innerHTML = '<p class="card__hint" style="margin:0">Checking…</p>';
+    try {
+      await api('/api/settings', {
+        method: 'PATCH',
+        body: {
+          cloudflare: {
+            accountId: document.getElementById('cf-account').value.trim(),
+            apiToken: document.getElementById('cf-token').value.trim()
+          }
+        }
+      });
+      await api('/api/cloudflare/test', { method: 'POST', body: {} });
+      state.session = await api('/api/session');
+      cfStatus.innerHTML = '<p class="card__hint" style="margin:0;color:#1d8a4e">Connected. The Publish button is ready on every catalog.</p>';
+      toast('Cloudflare connected');
+    } catch (error) {
+      cfStatus.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(error.message)}</p>`;
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  const cfOff = document.getElementById('cf-off');
+  if (cfOff) cfOff.onclick = async () => {
+    await api('/api/cloudflare/disconnect', { method: 'POST', body: {} });
+    state.session = await api('/api/session');
+    settingsView();
+    toast('Cloudflare disconnected');
   };
 
   document.querySelectorAll('[data-cid]').forEach((input) => {

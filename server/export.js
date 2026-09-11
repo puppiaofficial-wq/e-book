@@ -12,6 +12,7 @@ import { bookDir } from './access.js';
 import { escapeHtml, pad } from './util.js';
 import { renderRegion, locatePage } from './hires.js';
 import { zipDirectory } from './zip.js';
+import { MAX_ASSET_BYTES as STATIC_FILE_LIMIT } from './cloudflare.js';
 
 /**
  * @param onProgress receives { done, total, stage } while zoom images are rebuilt
@@ -29,17 +30,31 @@ export async function exportBook(book, outRoot, { zoomWidth = null, onProgress =
 
   const textFile = path.join(bookDir(book.id), 'text.json');
   if (fs.existsSync(textFile)) await fsp.copyFile(textFile, path.join(dir, 'text.json'));
+
+  // Static hosts cap individual files - Cloudflare Pages at 25 MB - and a
+  // print-ready catalog PDF is usually far above that. Carrying it along would
+  // make the whole bundle unpublishable, so it is left behind and reported.
+  let pdfSkipped = null;
   if (book.downloads.pdf) {
     const pdf = path.join(bookDir(book.id), 'source.pdf');
-    if (fs.existsSync(pdf)) await fsp.copyFile(pdf, path.join(dir, `${book.slug}.pdf`));
+    if (fs.existsSync(pdf)) {
+      const { size } = await fsp.stat(pdf);
+      if (size > STATIC_FILE_LIMIT) pdfSkipped = { name: `${book.slug}.pdf`, bytes: size };
+      else await fsp.copyFile(pdf, path.join(dir, `${book.slug}.pdf`));
+    }
   }
 
   await fsp.copyFile(path.join(PUBLIC_DIR, 'viewer', 'viewer.css'), path.join(dir, 'viewer.css'));
   await fsp.copyFile(path.join(PUBLIC_DIR, 'viewer', 'viewer.js'), path.join(dir, 'viewer.js'));
   await fsp.copyFile(path.join(PUBLIC_DIR, 'assets', 'favicon.svg'), path.join(dir, 'favicon.svg'));
-  await fsp.writeFile(path.join(dir, 'index.html'), staticViewer(book, rendered));
+  await fsp.writeFile(path.join(dir, 'index.html'), staticViewer(book, rendered, { pdfSkipped }));
 
-  return { dir, bytes: await folderSize(dir), zoomWidth: rendered || book.pages.sizes?.zoom || null };
+  return {
+    dir,
+    bytes: await folderSize(dir),
+    zoomWidth: rendered || book.pages.sizes?.zoom || null,
+    pdfSkipped
+  };
 }
 
 export async function writeLibraryIndex(outRoot, books) {
@@ -92,7 +107,8 @@ async function rerenderZoom(book, dir, width, onProgress) {
   return target;
 }
 
-function staticManifest(book, renderedZoom) {
+function staticManifest(book, renderedZoom, { pdfSkipped = null } = {}) {
+  const offerDownload = Boolean(book.downloads.pdf) && !pdfSkipped;
   const settings = store.settings();
   return {
     id: book.id,
@@ -114,7 +130,7 @@ function staticManifest(book, renderedZoom) {
     },
     capabilities: {
       search: Boolean(book.pages.hasText),
-      download: Boolean(book.downloads.pdf),
+      download: offerDownload,
       hires: false,       // nothing to render with once the server is gone
       preview: false
     },
@@ -128,14 +144,14 @@ function staticManifest(book, renderedZoom) {
       thumb: 'thumbs/p{n}.webp',
       hires: null,
       text: 'text.json',
-      download: book.downloads.pdf ? `${book.slug}.pdf` : null,
+      download: offerDownload ? `${book.slug}.pdf` : null,
       self: ''
     }
   };
 }
 
-function staticViewer(book, renderedZoom) {
-  const manifest = staticManifest(book, renderedZoom);
+function staticViewer(book, renderedZoom, options = {}) {
+  const manifest = staticManifest(book, renderedZoom, options);
   const boot = JSON.stringify(manifest).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en" data-theme="${escapeHtml(book.appearance.theme || 'dark')}">

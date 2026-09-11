@@ -1,6 +1,7 @@
 # Windows batch files must keep CRLF line endings and their CP949 bytes,
 # otherwise cmd.exe fails to parse them. Never let git normalise these.
 *.bat -text
+*.vbs -text
 
 # Shell launchers stay LF whatever the checkout platform.
 *.sh    text eol=lf
