@@ -25,6 +25,8 @@ call npm install
 if errorlevel 1 goto INSTALLFAIL
 :SKIPINSTALL
 
+if not exist "%~dp0run-hidden.vbs" goto NOVBS
+
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\autostart.ps1" -Here "%~dp0."
 if errorlevel 1 goto FAILED
 
@@ -63,6 +65,14 @@ goto END
 
 :INSTALLFAIL
 echo   [!] 준비 중 문제가 생겼습니다. 인터넷 연결을 확인하고 다시 실행하세요.
+echo.
+pause
+goto END
+
+:NOVBS
+echo   [!] run-hidden.vbs 파일이 폴더에 없습니다.
+echo       내려받은 파일이 일부만 풀린 것 같습니다.
+echo       압축을 다시 풀고 실행해 주세요.
 echo.
 pause
 goto END
