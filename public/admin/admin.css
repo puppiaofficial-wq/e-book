@@ -176,3 +176,14 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
   .main { padding: 18px 16px 80px; }
   .linkedit { grid-template-columns: 1fr; }
 }
+
+/* Sub-heading inside a card, for the two halves of a paired snippet. */
+.embed-h {
+  margin: 18px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.embed-h:first-of-type { margin-top: 14px; }

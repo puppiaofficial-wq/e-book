@@ -1066,18 +1066,30 @@ function embedTab(host) {
       <h2>Embed in a web page</h2>
       ${urls.liveSnippet ? `
         <p class="card__hint">
-          Paste this into your website builder's HTML or code block. The viewer resizes with the page and works on phones.
+          Paste this into your website builder's HTML or code block. Builders that edit the
+          desktop and mobile layouts separately need the matching snippet in each.
         </p>
+        <h3 class="embed-h">Desktop</h3>
+        <p class="card__hint" style="margin:0 0 8px">A wide frame, which shows a two-page spread.</p>
         <div class="copybox"><input type="text" readonly value="${esc(urls.liveSnippet)}"><button class="btn" data-copy="${esc(urls.liveSnippet)}">Copy</button></div>
+        <h3 class="embed-h">Mobile</h3>
+        <p class="card__hint" style="margin:0 0 8px">
+          A tall frame shaped to this catalog's own page, so one page fills the width instead of
+          sitting small in the middle of a letterbox.
+        </p>
+        <div class="copybox"><input type="text" readonly value="${esc(urls.livePhoneSnippet)}"><button class="btn" data-copy="${esc(urls.livePhoneSnippet)}">Copy</button></div>
         <p class="card__hint" style="margin:12px 0 0">
-          Re-publishing updates the catalog in place, so this snippet never has to change.
+          Re-publishing updates the catalog in place, so neither snippet has to change again.
         </p>
       ` : `
         <p class="card__hint" style="color:#b6741a">
           Publish the catalog first. A snippet pointing at this computer shows nothing to your visitors,
           and a secure website will refuse to load it at all.
         </p>
+        <h3 class="embed-h">Desktop</h3>
         <div class="copybox"><input type="text" readonly value="${esc(urls.embedSnippet)}"><button class="btn" data-copy="${esc(urls.embedSnippet)}">Copy</button></div>
+        <h3 class="embed-h">Mobile</h3>
+        <div class="copybox"><input type="text" readonly value="${esc(urls.phoneSnippet)}"><button class="btn" data-copy="${esc(urls.phoneSnippet)}">Copy</button></div>
       `}
       <div style="margin-top:18px;border:1px solid var(--line);border-radius:12px;overflow:hidden">
         <iframe src="${esc(urls.embed)}" style="width:100%;aspect-ratio:16/10;border:0;display:block" title="Preview"></iframe>

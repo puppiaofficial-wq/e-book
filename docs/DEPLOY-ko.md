@@ -117,10 +117,43 @@
 관리자 화면은 배포 전에는 `localhost` 주소를 노란 경고와 함께 보여 주고,
 배포한 뒤에는 `pages.dev` 주소로 바뀝니다. 경고가 보이면 아직 배포 전입니다.
 
-### 높이 조절
+### PC용과 모바일용을 따로 넣으세요
 
-`aspect-ratio:16/10` 이 가로세로 비율입니다. 카탈로그가 세로로 길면 `16/12` 나 `4/3`
-처럼 뒷숫자를 키우세요. 고정 높이로 하고 싶으면 이렇게 바꿉니다.
+아임웹은 PC 화면과 모바일 화면을 따로 편집합니다. 두 코드가 다릅니다.
+
+PC는 두 장이 펼쳐진 모양이라 가로로 긴 틀이 맞습니다.
+
+```html
+<iframe src="https://26fw-puppia.pages.dev/?embed=1" title="26FW PUPPIA"
+        style="width:100%;aspect-ratio:16/10;border:0" allowfullscreen loading="lazy"></iframe>
+```
+
+휴대폰은 한 장씩 보이므로 세로로 긴 틀이라야 페이지가 화면 가로를 꽉 채웁니다.
+가로로 긴 틀을 그대로 쓰면 위아래 검은 여백만 넓고 페이지는 손톱만 하게 나옵니다.
+
+```html
+<iframe src="https://26fw-puppia.pages.dev/?embed=1" title="26FW PUPPIA"
+        style="width:100%;aspect-ratio:390/640;border:0" allowfullscreen loading="lazy"></iframe>
+```
+
+두 코드 모두 관리자 화면 **Embed on your site** 의 *Desktop* / *Mobile* 칸에
+카탈로그에 맞게 계산되어 나옵니다. 그대로 복사해 쓰시면 됩니다.
+
+### 비율 숫자의 뜻
+
+`aspect-ratio:390/640` 은 "가로 390일 때 세로 640" 이라는 뜻입니다.
+카탈로그 판형에 따라 뒷숫자가 달라집니다.
+
+| 카탈로그 판형 | 모바일 비율 |
+| --- | --- |
+| A4 (210 x 297) | `390/647` |
+| 176 x 246 mm | `390/640` |
+| A5 (148 x 210) | `390/648` |
+| 정사각형 | `390/490` |
+| 가로형 (297 x 210) | `390/379` |
+
+여백이 남으면 뒷숫자를 조금 줄이고, 페이지 위아래가 잘리면 조금 늘리세요.
+고정 높이로 하고 싶으면 이렇게 바꿉니다.
 
 ```html
 style="width:100%;height:720px;border:0"

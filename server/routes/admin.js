@@ -561,9 +561,27 @@ const shareSafe = (req) => (share) => ({
   url: `${originOf(req, PUBLIC_BASE_URL)}/s/${share.token}`
 });
 
-function iframeSnippet(src, title) {
+function iframeSnippet(src, title, shape = 'width:100%;aspect-ratio:16/10') {
   return `<iframe src="${src}" title="${String(title).replace(/"/g, '&quot;')}" ` +
-    `style="width:100%;aspect-ratio:16/10;border:0" allowfullscreen loading="lazy"></iframe>`;
+    `style="${shape};border:0" allowfullscreen loading="lazy"></iframe>`;
+}
+
+/**
+ * How tall the frame has to be for one page to fill a phone's width.
+ *
+ * On a narrow screen the viewer shows a single page, so a landscape frame
+ * leaves the page tiny in the middle - the page is limited by the frame's
+ * height, not its width. Sized against a 390 px phone: take the width the page
+ * actually gets after the stage padding, work out how tall that page is at the
+ * catalog's own proportions, and add back the two bars.
+ */
+function phoneShape(book) {
+  const aspect = book.pages?.aspect || 0.707;
+  const REFERENCE_WIDTH = 390;
+  const SIDE_MARGIN = 12;  // the breathing room the layout keeps beside a page
+  const CHROME = 112;      // embedded top bar, page-turn bar and stage padding
+  const pageHeight = (REFERENCE_WIDTH - SIDE_MARGIN) / aspect;
+  return `width:100%;aspect-ratio:${REFERENCE_WIDTH}/${Math.round(pageHeight + CHROME)}`;
 }
 
 function linkSet(req, book) {
@@ -579,6 +597,8 @@ function linkSet(req, book) {
     // on the machine running this server, so both are offered separately.
     live: live || null,
     liveEmbed: live ? `${live}/?embed=1` : null,
-    liveSnippet: live ? iframeSnippet(`${live}/?embed=1`, book.title) : null
+    liveSnippet: live ? iframeSnippet(`${live}/?embed=1`, book.title) : null,
+    livePhoneSnippet: live ? iframeSnippet(`${live}/?embed=1`, book.title, phoneShape(book)) : null,
+    phoneSnippet: iframeSnippet(`${base}/embed/${book.slug}`, book.title, phoneShape(book))
   };
 }

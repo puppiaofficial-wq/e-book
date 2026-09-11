@@ -55,6 +55,10 @@ button { font-family: inherit; color: inherit; }
   inset: 0;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  /* A grid track is sized by its widest child unless told otherwise, so the
+     page slider used to stretch the whole viewer past a narrow screen and push
+     the last toolbar button off the edge. */
+  grid-template-columns: minmax(0, 1fr);
   background: var(--bg);
 }
 
@@ -63,6 +67,7 @@ button { font-family: inherit; color: inherit; }
 .bar {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 8px;
   padding: 0 10px;
   height: var(--bar-h);
@@ -90,7 +95,11 @@ button { font-family: inherit; color: inherit; }
   display: flex;
   align-items: center;
   gap: 10px;
+  /* The title gives way before the buttons do: on a narrow screen the tools
+     must all stay reachable, and a truncated title costs nothing. */
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
   padding-left: 4px;
 }
 .brand img { height: 24px; width: auto; display: block; }
@@ -101,6 +110,7 @@ button { font-family: inherit; color: inherit; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
   max-width: 34vw;
 }
 .brand__sub { font-size: 12px; color: var(--muted); }
@@ -520,6 +530,7 @@ html[data-theme='light'] .pane { box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
 
 @media (max-width: 720px) {
   .brand__title { max-width: 42vw; font-size: 13px; }
+  .bar__spacer { min-width: 4px; }
   .brand__sub { display: none; }
   .stage { padding: 8px; }
   .edge { display: none; }
@@ -534,3 +545,23 @@ html[data-theme='light'] .pane { box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
 }
 
 body.is-embed .bar--top { --bar-h: 46px; }
+
+/* Phone-width toolbars: a catalog with contents, search, share, fullscreen and
+   an open-out link needs six buttons to fit beside the title, so they tighten
+   up rather than the last one falling off the edge. */
+@media (max-width: 480px) {
+  .bar { gap: 2px; padding: 0 6px; }
+  .pager { gap: 6px; }
+  .pager__label { min-width: 58px; font-size: 12px; }
+  .slider { min-width: 40px; }
+  .bar .btn { width: 34px; height: 34px; }
+  .bar .btn svg { width: 19px; height: 19px; }
+  .brand { gap: 6px; padding-left: 2px; }
+  .brand__title { max-width: 28vw; }
+  .brand img { height: 20px; }
+}
+
+@media (max-width: 380px) {
+  .bar .btn { width: 31px; height: 31px; }
+  .brand__title { max-width: 22vw; }
+}
