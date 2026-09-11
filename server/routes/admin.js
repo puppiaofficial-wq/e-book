@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import multer from 'multer';
-import { TMP_DIR, PUBLIC_BASE_URL, EXPORT_DIR } from '../config.js';
+import { TMP_DIR, PUBLIC_BASE_URL, EXPORT_DIR, VERSION } from '../config.js';
 import * as store from '../store.js';
 import { wrap, originOf, id, token, nowIso, rmrf, slugify } from '../util.js';
 import {
@@ -33,7 +33,8 @@ router.get('/api/session', (req, res) => {
     configured: Boolean(account),
     admin: currentAdmin(req),
     settings: account ? store.settings() : null,
-    baseUrl: originOf(req, PUBLIC_BASE_URL)
+    baseUrl: originOf(req, PUBLIC_BASE_URL),
+    version: VERSION
   });
 });
 

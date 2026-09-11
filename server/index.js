@@ -22,8 +22,12 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/viewer', express.static(path.join(PUBLIC_DIR, 'viewer'), { maxAge: '1h' }));
-app.use('/admin/assets', express.static(path.join(PUBLIC_DIR, 'admin'), { maxAge: '1h' }));
+/* The viewer and console are the parts that change when the software is
+   updated, and a cached copy silently keeps running the old build. They
+   revalidate on every load instead: an ETag makes that a 304 of a few bytes. */
+const appCode = { etag: true, maxAge: 0, setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') };
+app.use('/viewer', express.static(path.join(PUBLIC_DIR, 'viewer'), appCode));
+app.use('/admin/assets', express.static(path.join(PUBLIC_DIR, 'admin'), appCode));
 app.use('/assets', express.static(path.join(PUBLIC_DIR, 'assets'), { maxAge: '7d' }));
 
 app.use('/admin', adminRouter);
@@ -31,6 +35,7 @@ app.use('/admin', adminRouter);
 /* Admin single-page app shell for every non-API admin route. */
 app.get(/^\/admin(\/.*)?$/, (req, res, next) => {
   if (req.path.startsWith('/admin/api')) return next();
+  res.set('Cache-Control', 'no-cache');
   res.type('html').sendFile(path.join(PUBLIC_DIR, 'admin', 'index.html'));
 });
 

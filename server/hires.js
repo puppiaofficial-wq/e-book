@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import * as mupdf from 'mupdf';
 import { decideSplits } from './convert.js';
 import sharp from 'sharp';
+import { RENDER } from './config.js';
 
 const MAX_EDGE = 3600;      // longest side of a single render
 const MAX_PIXELS = 8e6;     // one render stays around half a second
@@ -100,11 +101,11 @@ export async function renderRegion({ bookId, pdfPath, sourcePage, half, rect, pi
   }
 
   const raw = pixmap.getPixels();
-  const buffer = await sharp(Buffer.from(raw.buffer, raw.byteOffset, raw.length), {
+  let pipeline = sharp(Buffer.from(raw.buffer, raw.byteOffset, raw.length), {
     raw: { width: pixmap.getWidth(), height: pixmap.getHeight(), channels: pixmap.getNumberOfComponents() }
-  })
-    .webp({ quality, smartSubsample: true })
-    .toBuffer();
+  });
+  if (RENDER.sharpen) pipeline = pipeline.sharpen(RENDER.sharpen);
+  const buffer = await pipeline.webp({ quality, smartSubsample: true }).toBuffer();
   pixmap.destroy?.();
 
   tiles.set(key, buffer);

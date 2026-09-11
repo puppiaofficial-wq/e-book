@@ -145,6 +145,7 @@ function shell(body) {
       <a class="nav" href="/library" target="_blank" rel="noopener">Public library ↗</a>
       <div class="side__foot">
         <span>${esc(state.session?.admin?.email || '')}</span>
+        <span>버전 ${esc(state.session?.version || '?')}</span>
         <button class="btn btn--ghost btn--sm" id="signOut" style="justify-content:center">Sign out</button>
       </div>
     </nav>

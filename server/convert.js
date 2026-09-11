@@ -93,11 +93,14 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
       const region = { left, top: 0, width: segments === 2 ? segWidth : fullWidth, height: fullHeight };
 
       const crop = () => sharp(source, { raw: { width: fullWidth, height: fullHeight, channels } }).extract(region);
+      const crisp = (pipeline) => (opts.sharpen ? pipeline.sharpen(opts.sharpen) : pipeline);
       const name = `p${pad(outputIndex)}.webp`;
       await Promise.all([
-        crop().webp({ quality: opts.zoomQuality, smartSubsample: true, effort: 5 }).toFile(path.join(outDir, 'zoom', name)),
-        crop().resize({ width: Math.min(target.view, region.width) })
-          .webp({ quality: opts.viewQuality, smartSubsample: true, effort: 5 }).toFile(path.join(outDir, 'pages', name)),
+        crisp(crop()).webp({ quality: opts.zoomQuality, smartSubsample: true, effort: 5 })
+          .toFile(path.join(outDir, 'zoom', name)),
+        crisp(crop().resize({ width: Math.min(target.view, region.width) }))
+          .webp({ quality: opts.viewQuality, smartSubsample: true, effort: 5 })
+          .toFile(path.join(outDir, 'pages', name)),
         crop().resize({ width: Math.min(target.thumb, region.width) })
           .webp({ quality: opts.thumbQuality }).toFile(path.join(outDir, 'thumbs', name))
       ]);

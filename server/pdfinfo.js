@@ -70,25 +70,39 @@ function imageBoxes(pdfPage) {
   }
 }
 
+/** Smallest share of the page width an image must cover to be measured. */
+const MEANINGFUL = 0.15;
+
 /**
- * The width in pixels the page would have if its dominant image filled it.
- * Returns null when the page has no raster content to be limited by.
+ * How many pixels the page would need to show its sharpest sizeable image at
+ * full detail. Null when there is no raster content, or when the artwork
+ * cannot be measured confidently - capping on a bad guess would throw away
+ * detail that is really there, so an unknown page is left uncapped.
  */
 export function sourceWidthOf(pdfPage, pageWidthPt) {
   const objects = imageObjects(pdfPage);
   if (!objects.length) return null;
 
-  const boxes = imageBoxes(pdfPage);
-  if (boxes.length === objects.length && boxes.length > 0) {
-    // Same count on both sides: pair them by size and trust the biggest one,
-    // which is the image a reader actually zooms into.
-    const byArea = [...boxes].sort((a, b) => b.w * b.h - a.w * a.h);
-    const byPixels = [...objects].sort((a, b) => b.w * b.h - a.w * a.h);
-    const box = byArea[0];
-    const pixels = byPixels[0];
-    if (box.w > pageWidthPt * 0.2) {
-      return Math.round(pixels.w * (pageWidthPt / box.w));
-    }
+  const boxes = imageBoxes(pdfPage).filter((box) => box.w >= pageWidthPt * MEANINGFUL);
+  if (!boxes.length) return null;
+
+  // Match each placed rectangle to the image whose proportions fit it best.
+  const pool = [...objects];
+  let best = 0;
+  for (const box of boxes.sort((a, b) => b.w * b.h - a.w * a.h)) {
+    const wanted = box.w / box.h;
+    let pick = -1;
+    let closest = Infinity;
+    pool.forEach((image, index) => {
+      const distance = Math.abs(Math.log((image.w / image.h) / wanted));
+      if (distance < closest) {
+        closest = distance;
+        pick = index;
+      }
+    });
+    if (pick < 0 || closest > 0.12) continue; // proportions too far apart to trust
+    const [image] = pool.splice(pick, 1);
+    best = Math.max(best, image.w * (pageWidthPt / box.w));
   }
-  return Math.max(...objects.map((image) => image.w));
+  return best ? Math.round(best) : null;
 }
