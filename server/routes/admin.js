@@ -114,9 +114,26 @@ router.get('/api/books/:id', (req, res) => {
     book: publicSafe(book),
     shares: store.sharesForBook(book.id).map(shareSafe(req)),
     urls: linkSet(req, book),
-    quality: qualityReport(book)
+    quality: qualityReport(book),
+    publish: publishState(book)
   });
 });
+
+/**
+ * What has already been built and published for this catalog, so reopening it
+ * shows the same thing as the moment the job finished rather than an empty
+ * card that makes a published catalog look untouched.
+ */
+function publishState(book) {
+  const { dir, zip } = exportPathsFor(book);
+  const built = fs.existsSync(dir) && fs.existsSync(zip);
+  return {
+    exportReady: built,
+    exportedAt: built ? fs.statSync(zip).mtime.toISOString() : null,
+    zipBytes: built ? fs.statSync(zip).size : null,
+    deployment: book.deployment || null
+  };
+}
 
 router.post('/api/books', upload.array('files', 400), wrap(async (req, res) => {
   const files = req.files || [];

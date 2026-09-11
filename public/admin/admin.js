@@ -1037,9 +1037,32 @@ function shareTab(host) {
 
 /* embed ----------------------------------------------------------- */
 
+/** A published catalog's live address, shown the same way whether it was just
+ *  deployed or deployed last week. */
+function liveBlock(url, at) {
+  return `<p class="card__hint" style="margin:0 0 8px">Published ${esc(when(at))}.</p>` +
+    `<div class="copybox"><input type="text" readonly value="${esc(url)}">` +
+    `<button class="btn" data-copy="${esc(url)}">Copy</button></div>` +
+    `<a class="btn btn--sm" style="margin-top:8px" href="${esc(url)}" target="_blank" rel="noopener">Open the live catalog ↗</a>`;
+}
+
+function when(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+  if (days === 0) return `today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  return `on ${date.toLocaleDateString()}`;
+}
+
 function embedTab(host) {
   const urls = state.urls;
   const book = state.book;
+  const publish = state.publish || {};
+  const published = Boolean(publish.deployment?.url && urls.live);
+  const built = Boolean(publish.exportReady);
   host.innerHTML = `
     <div class="card">
       <h2>Direct link</h2>
@@ -1131,22 +1154,32 @@ function embedTab(host) {
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn--primary" id="ex-build">Prepare download</button>
-        <button class="btn btn--primary" id="ex-deploy" hidden>Publish to Cloudflare</button>
-        <a class="btn" id="ex-get" href="/admin/api/books/${state.book.id}/export.zip" hidden>Download .zip</a>
-        <a class="btn" id="ex-preview" href="/export-preview/${esc(state.book.slug)}/" target="_blank" rel="noopener" hidden>Open the exported files ↗</a>
+        <button class="btn ${published ? '' : 'btn--primary'}" id="ex-build">Prepare download</button>
+        <button class="btn btn--primary" id="ex-deploy" ${published || built ? '' : 'hidden'}>
+          ${published ? 'Update on Cloudflare' : 'Publish to Cloudflare'}
+        </button>
+        <a class="btn" id="ex-get" href="/admin/api/books/${state.book.id}/export.zip" ${built ? '' : 'hidden'}>Download .zip</a>
+        <a class="btn" id="ex-preview" href="/export-preview/${esc(state.book.slug)}/" target="_blank" rel="noopener" ${built ? '' : 'hidden'}>Open the exported files ↗</a>
       </div>
-      <div id="ex-status" style="margin-top:14px"></div>
-      <div id="ex-live" style="margin-top:10px"></div>
+      <div id="ex-status" style="margin-top:14px">${built && !published
+        ? `<p class="card__hint" style="margin:0">Prepared ${esc(when(publish.exportedAt))}${publish.zipBytes ? `, ${(publish.zipBytes / 1048576).toFixed(1)} MB` : ''}.</p>`
+        : ''}</div>
+      <div id="ex-live" style="margin-top:10px">${published ? liveBlock(urls.live, publish.deployment.at) : ''}</div>
     </div>
 
     <div class="card">
       <h2>QR code</h2>
-      <p class="card__hint">For trade-show signage, hang tags or printed line sheets.</p>
-      <div style="background:#fff;padding:16px;border-radius:12px;width:max-content">
-        <img src="/api/v1/qr?data=${encodeURIComponent(urls.viewer)}" alt="QR code" style="width:200px;height:200px;display:block">
-      </div>
-      <a class="btn btn--sm" style="margin-top:12px" href="/api/v1/qr?data=${encodeURIComponent(urls.viewer)}" download="${esc(book.slug)}-qr.svg">Download SVG</a>
+      ${published ? `
+        <p class="card__hint">Points at the published catalog. For trade-show signage, hang tags or printed line sheets.</p>
+        <div style="background:#fff;padding:16px;border-radius:12px;width:max-content">
+          <img src="/api/v1/qr?data=${encodeURIComponent(urls.live)}" alt="QR code" style="width:200px;height:200px;display:block">
+        </div>
+        <a class="btn btn--sm" style="margin-top:12px" href="/api/v1/qr?data=${encodeURIComponent(urls.live)}" download="${esc(book.slug)}-qr.svg">Download SVG</a>
+      ` : `
+        <p class="card__hint" style="margin:0">
+          Available once the catalog is published. A code pointing at this computer would be unreadable to anyone else.
+        </p>
+      `}
     </div>`;
 
   host.addEventListener('click', (event) => {
@@ -1157,61 +1190,55 @@ function embedTab(host) {
   const link = document.getElementById('ex-get');
   const deploy = document.getElementById('ex-deploy');
   const live = document.getElementById('ex-live');
+
+  /** Runs one server job and reports it in the card. Resolves with its result. */
+  function runJob(path, body) {
+    return new Promise((resolve, reject) => {
+      api(path, { method: 'POST', body }).then(({ jobId }) => {
+        const source = new EventSource(`/admin/api/jobs/${jobId}/stream`);
+        source.onmessage = (message) => {
+          const job = JSON.parse(message.data);
+          status.innerHTML =
+            `<p class="card__hint" style="margin:0 0 6px">${esc(job.message)}</p>` +
+            `<div class="progress"><span style="width:${Math.round((job.progress || 0) * 100)}%"></span></div>`;
+          if (job.state === 'done') { source.close(); resolve(job.result); }
+          if (job.state === 'failed') { source.close(); reject(new Error(job.message)); }
+        };
+        source.onerror = () => { source.close(); reject(new Error('Lost contact with the server.')); };
+      }).catch(reject);
+    });
+  }
+
+  function exportNote(result) {
+    const mb = (result.zipBytes / 1048576).toFixed(1);
+    const dropped = result.pdfSkipped;
+    return `<p class="card__hint" style="margin:0">Ready: <b>${esc(result.slug)}.zip</b>, ${mb} MB, ` +
+      `zoom images ${result.zoomWidth} px.</p>` +
+      (dropped
+        ? `<p class="card__hint" style="margin:8px 0 0;color:#b6741a">The PDF download was left out: ` +
+          `<b>${esc(dropped.name)}</b> is ${(dropped.bytes / 1048576).toFixed(0)} MB and static hosts accept files up to 25 MB. ` +
+          `The catalog itself is unaffected. To offer the PDF, host it elsewhere and link to it, or turn the download off under Publish &amp; access.</p>`
+        : '');
+  }
+
   document.getElementById('ex-build').onclick = async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
-    link.hidden = true;
-    deploy.hidden = true;
-    button.classList.add('btn--primary');
-    live.innerHTML = '';
-    document.getElementById('ex-preview').hidden = true;
+    deploy.disabled = true;
     status.innerHTML = '<div class="progress"><span style="width:4%"></span></div>';
     try {
       const zoomWidth = document.getElementById('ex-zoom').value || null;
-      const { jobId } = await api(`/api/books/${state.book.id}/export`, {
-        method: 'POST',
-        body: { zoomWidth }
-      });
-      const source = new EventSource(`/admin/api/jobs/${jobId}/stream`);
-      source.onmessage = (message) => {
-        const job = JSON.parse(message.data);
-        status.innerHTML =
-          `<p class="card__hint" style="margin:0 0 6px">${esc(job.message)}</p>` +
-          `<div class="progress"><span style="width:${Math.round((job.progress || 0) * 100)}%"></span></div>`;
-        if (job.state === 'done') {
-          source.close();
-          button.disabled = false;
-          link.hidden = false;
-          document.getElementById('ex-preview').hidden = false;
-          deploy.hidden = false;
-          // Publishing is the next thing to do, so it takes over as the
-          // primary action once there is something to publish.
-          button.classList.remove('btn--primary');
-          const mb = (job.result.zipBytes / 1048576).toFixed(1);
-          const dropped = job.result.pdfSkipped;
-          status.innerHTML =
-            `<p class="card__hint" style="margin:0">Ready: <b>${esc(job.result.slug)}.zip</b>, ${mb} MB, ` +
-            `zoom images ${job.result.zoomWidth} px. ` +
-            `Open the exported files first — if they work here, the bundle is fine and any problem is with the host.</p>` +
-            (dropped
-              ? `<p class="card__hint" style="margin:8px 0 0;color:#b6741a">The PDF download was left out: ` +
-                `<b>${esc(dropped.name)}</b> is ${(dropped.bytes / 1048576).toFixed(0)} MB and static hosts accept files up to 25 MB. ` +
-                `The catalog itself is unaffected. To offer the PDF, host it elsewhere and link to it, or turn the download off under Publish &amp; access.</p>`
-              : '');
-        }
-        if (job.state === 'failed') {
-          source.close();
-          button.disabled = false;
-          status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(job.message)}</p>`;
-        }
-      };
-      source.onerror = () => {
-        source.close();
-        button.disabled = false;
-      };
+      const result = await runJob(`/api/books/${state.book.id}/export`, { zoomWidth });
+      link.hidden = false;
+      document.getElementById('ex-preview').hidden = false;
+      deploy.hidden = false;
+      if (!published) button.classList.remove('btn--primary');
+      status.innerHTML = exportNote(result);
     } catch (error) {
-      button.disabled = false;
       status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(error.message)}</p>`;
+    } finally {
+      button.disabled = false;
+      deploy.disabled = false;
     }
   };
 
@@ -1229,43 +1256,36 @@ function embedTab(host) {
     }
 
     deploy.disabled = true;
-    live.innerHTML = '';
+    document.getElementById('ex-build').disabled = true;
     status.innerHTML = '<div class="progress"><span style="width:4%"></span></div>';
     try {
-      const { jobId } = await api(`/api/books/${state.book.id}/deploy`, { method: 'POST', body: {} });
-      const source = new EventSource(`/admin/api/jobs/${jobId}/stream`);
-      source.onmessage = (message) => {
-        const job = JSON.parse(message.data);
-        status.innerHTML =
-          `<p class="card__hint" style="margin:0 0 6px">${esc(job.message)}</p>` +
-          `<div class="progress"><span style="width:${Math.round((job.progress || 0) * 100)}%"></span></div>`;
-        if (job.state === 'done') {
-          source.close();
-          deploy.disabled = false;
-          const { liveUrl, uploaded, reused } = job.result;
-          const what = uploaded
-            ? `${uploaded} file${uploaded === 1 ? '' : 's'} uploaded${reused ? `, ${reused} unchanged` : ''}`
-            : `nothing had changed, so all ${reused} files were reused`;
-          status.innerHTML = `<p class="card__hint" style="margin:0">Published — ${what}. ` +
-            `It can take a few seconds to go live.</p>`;
-          live.innerHTML =
-            `<div class="copybox"><input type="text" readonly value="${esc(liveUrl)}">` +
-            `<button class="btn" data-copy="${esc(liveUrl)}">Copy</button></div>` +
-            `<a class="btn btn--sm" style="margin-top:8px" href="${esc(liveUrl)}" target="_blank" rel="noopener">Open the live catalog ↗</a>`;
-        }
-        if (job.state === 'failed') {
-          source.close();
-          deploy.disabled = false;
-          status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(job.message)}</p>`;
-        }
-      };
-      source.onerror = () => {
-        source.close();
-        deploy.disabled = false;
-      };
+      // Updating an already published catalog rebuilds it first, so the button
+      // means what it says: whatever is in the catalog now goes up.
+      if (published) {
+        const zoomWidth = document.getElementById('ex-zoom').value || null;
+        await runJob(`/api/books/${state.book.id}/export`, { zoomWidth });
+        link.hidden = false;
+        document.getElementById('ex-preview').hidden = false;
+      }
+      const result = await runJob(`/api/books/${state.book.id}/deploy`, {});
+      const { liveUrl, uploaded, reused } = result;
+      const what = uploaded
+        ? `${uploaded} file${uploaded === 1 ? '' : 's'} uploaded${reused ? `, ${reused} unchanged` : ''}`
+        : `nothing had changed, so all ${reused} files were reused`;
+      status.innerHTML = `<p class="card__hint" style="margin:0">Published — ${what}. ` +
+        `It can take a few seconds to go live.</p>`;
+      live.innerHTML = liveBlock(liveUrl, new Date().toISOString());
+      // Every other card on this page quotes the address, so they are rebuilt
+      // from the server's record rather than left showing the local one.
+      await loadBook(state.book.id);
+      const keep = status.innerHTML;
+      bookView('embed');
+      const refreshed = document.getElementById('ex-status');
+      if (refreshed) refreshed.innerHTML = keep;
     } catch (error) {
-      deploy.disabled = false;
       status.innerHTML = `<p class="card__hint" style="margin:0;color:#d63a2f">${esc(error.message)}</p>`;
+      deploy.disabled = false;
+      document.getElementById('ex-build').disabled = false;
     }
   };
 }
@@ -1480,6 +1500,7 @@ async function loadBook(bookId) {
   state.shares = data.shares;
   state.urls = data.urls;
   state.quality = data.quality;
+  state.publish = data.publish;
 }
 
 async function render() {
