@@ -64,6 +64,13 @@ export function exportPathsFor(book) {
 async function rerenderZoom(book, dir, width, onProgress) {
   const pdfPath = path.join(bookDir(book.id), 'source.pdf');
   if (!fs.existsSync(pdfPath)) return null;
+
+  // Flattened artwork cannot be rendered past its own resolution: doing so
+  // bakes an upscale into the bundle and then invites the viewer to magnify
+  // into it, which looks worse than leaving the pages at source size.
+  const native = book.pages.sizes?.native || null;
+  const target = native ? Math.min(width, native) : width;
+
   for (let page = 1; page <= book.pages.count; page += 1) {
     const where = locatePage(book, page, pdfPath);
     if (!where) return null;
@@ -73,15 +80,16 @@ async function rerenderZoom(book, dir, width, onProgress) {
       sourcePage: where.sourcePage,
       half: where.half,
       rect: { x: 0, y: 0, w: 1, h: 1 },
-      pixels: width,
-      maxEdge: width * 2,
+      pixels: target,
+      nativeWidth: native,
+      maxEdge: target * 2,
       maxPixels: 4.5e7,
       quality: 84
     });
     await fsp.writeFile(path.join(dir, 'zoom', `p${pad(page)}.webp`), buffer);
     onProgress({ done: page, total: book.pages.count, stage: 'zoom' });
   }
-  return width;
+  return target;
 }
 
 function staticManifest(book, renderedZoom) {

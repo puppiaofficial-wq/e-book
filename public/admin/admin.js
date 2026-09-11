@@ -1075,14 +1075,16 @@ function embedTab(host) {
       </p>
       <div class="grid2">
         <div class="field">
-          <label for="ex-zoom">Zoom image quality</label>
+          <label for="ex-zoom">Zoom image width</label>
           <select id="ex-zoom">
-            <option value="">Use the stored images — fastest</option>
-            <option value="3000">3000 px — good</option>
-            <option value="3600" selected>3600 px — sharper, recommended</option>
-            <option value="4400">4400 px — sharpest, slow to build</option>
+            <option value="" selected>Use the stored images — recommended</option>
+            <option value="2400">2400 px</option>
+            <option value="3000">3000 px</option>
+            <option value="3600">3600 px</option>
           </select>
-          <span class="hint">A static host cannot re-render on demand, so the zoom limit is set here.</span>
+          <span class="hint">${state.quality?.sourceWidth
+            ? `This PDF holds ${state.quality.sourceWidth} px of artwork, and pages are never rendered above it. A larger choice here is ignored.`
+            : 'A static host cannot re-render on demand, so the zoom limit is set here.'}</span>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
