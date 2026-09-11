@@ -402,6 +402,9 @@ router.post('/api/books/:id/deploy', wrap(async (req, res) => {
           message: total && stage === 'Uploading' ? `Uploading ${done} of ${total} files` : stage
         })
       });
+      await store.updateBook(book.id, {
+        deployment: { url: result.liveUrl, projectName: result.projectName, at: nowIso() }
+      });
       return { ...result, bookId: book.id };
     } catch (error) {
       throw new Error(cloudflareHint(error));
@@ -558,15 +561,24 @@ const shareSafe = (req) => (share) => ({
   url: `${originOf(req, PUBLIC_BASE_URL)}/s/${share.token}`
 });
 
+function iframeSnippet(src, title) {
+  return `<iframe src="${src}" title="${String(title).replace(/"/g, '&quot;')}" ` +
+    `style="width:100%;aspect-ratio:16/10;border:0" allowfullscreen loading="lazy"></iframe>`;
+}
+
 function linkSet(req, book) {
   const base = originOf(req, PUBLIC_BASE_URL);
+  const live = book.deployment?.url ? book.deployment.url.replace(/\/+$/, '') : null;
   return {
     base,
     viewer: `${base}/b/${book.slug}`,
     embed: `${base}/embed/${book.slug}`,
     library: `${base}/library`,
-    embedSnippet:
-      `<iframe src="${base}/embed/${book.slug}" title="${book.title.replace(/"/g, '&quot;')}" ` +
-      `style="width:100%;aspect-ratio:16/10;border:0" allowfullscreen loading="lazy"></iframe>`
+    embedSnippet: iframeSnippet(`${base}/embed/${book.slug}`, book.title),
+    // A published catalog lives on the internet; the addresses above only work
+    // on the machine running this server, so both are offered separately.
+    live: live || null,
+    liveEmbed: live ? `${live}/?embed=1` : null,
+    liveSnippet: live ? iframeSnippet(`${live}/?embed=1`, book.title) : null
   };
 }

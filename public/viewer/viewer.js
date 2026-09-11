@@ -1238,10 +1238,15 @@ function applyCapabilities() {
   el.btnDownload.hidden = !BOOK.capabilities.download;
   el.btnPrint.hidden = !BOOK.appearance.showPrint;
   el.btnShare.hidden = !BOOK.appearance.showShare;
-  if (BOOK.embed) {
+  // A statically exported catalog is one page with no separate embed route, so
+  // ?embed=1 on its address asks for the same framed layout.
+  const framed = BOOK.embed || new URLSearchParams(location.search).has('embed');
+  if (framed) {
     document.body.classList.add('is-embed');
     el.btnOpen.hidden = false;
-    el.btnOpen.href = `${BOOK.origin || ''}${BOOK.urls.self}`;
+    el.btnOpen.href = BOOK.embed
+      ? `${BOOK.origin || ''}${BOOK.urls.self}`
+      : location.pathname; // the same page, without the embed flag
     el.btnFull.hidden = false;
   }
   if (BOOK.capabilities.preview) {

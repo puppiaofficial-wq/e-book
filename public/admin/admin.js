@@ -1043,15 +1043,42 @@ function embedTab(host) {
   host.innerHTML = `
     <div class="card">
       <h2>Direct link</h2>
-      <p class="card__hint">The address to put in a newsletter, a message or a button on your website.</p>
-      <div class="copybox"><input type="text" readonly value="${esc(urls.viewer)}"><button class="btn" data-copy="${esc(urls.viewer)}">Copy</button></div>
-      <p class="card__hint" style="margin:14px 0 6px">Open at a specific page by adding <code>#p=12</code> to the address.</p>
+      ${urls.live ? `
+        <p class="card__hint">Published on the internet. This is the address to send to buyers.</p>
+        <div class="copybox"><input type="text" readonly value="${esc(urls.live)}"><button class="btn" data-copy="${esc(urls.live)}">Copy</button></div>
+        <p class="card__hint" style="margin:14px 0 0">Open at a specific page by adding <code>#p=12</code> to the address.</p>
+        <details style="margin-top:14px">
+          <summary class="card__hint" style="cursor:pointer">Address on this computer, for checking before you publish</summary>
+          <div class="copybox" style="margin-top:8px"><input type="text" readonly value="${esc(urls.viewer)}"><button class="btn" data-copy="${esc(urls.viewer)}">Copy</button></div>
+          <p class="card__hint" style="margin:8px 0 0">Only opens on the computer running eBook Studio. Do not send this one out.</p>
+        </details>
+      ` : `
+        <p class="card__hint" style="color:#b6741a">
+          Not published yet. The address below only opens on this computer - it will not work for anyone else.
+          Use <b>Publish to Cloudflare</b> below to get a public address first.
+        </p>
+        <div class="copybox"><input type="text" readonly value="${esc(urls.viewer)}"><button class="btn" data-copy="${esc(urls.viewer)}">Copy</button></div>
+        <p class="card__hint" style="margin:14px 0 0">Open at a specific page by adding <code>#p=12</code> to the address.</p>
+      `}
     </div>
 
     <div class="card">
       <h2>Embed in a web page</h2>
-      <p class="card__hint">Paste this snippet into your website. The viewer resizes with the page and works on phones.</p>
-      <div class="copybox"><input type="text" readonly value="${esc(urls.embedSnippet)}"><button class="btn" data-copy="${esc(urls.embedSnippet)}">Copy</button></div>
+      ${urls.liveSnippet ? `
+        <p class="card__hint">
+          Paste this into your website builder's HTML or code block. The viewer resizes with the page and works on phones.
+        </p>
+        <div class="copybox"><input type="text" readonly value="${esc(urls.liveSnippet)}"><button class="btn" data-copy="${esc(urls.liveSnippet)}">Copy</button></div>
+        <p class="card__hint" style="margin:12px 0 0">
+          Re-publishing updates the catalog in place, so this snippet never has to change.
+        </p>
+      ` : `
+        <p class="card__hint" style="color:#b6741a">
+          Publish the catalog first. A snippet pointing at this computer shows nothing to your visitors,
+          and a secure website will refuse to load it at all.
+        </p>
+        <div class="copybox"><input type="text" readonly value="${esc(urls.embedSnippet)}"><button class="btn" data-copy="${esc(urls.embedSnippet)}">Copy</button></div>
+      `}
       <div style="margin-top:18px;border:1px solid var(--line);border-radius:12px;overflow:hidden">
         <iframe src="${esc(urls.embed)}" style="width:100%;aspect-ratio:16/10;border:0;display:block" title="Preview"></iframe>
       </div>
@@ -1060,10 +1087,14 @@ function embedTab(host) {
     <div class="card">
       <h2>Link from a button or image</h2>
       <p class="card__hint">Use this HTML if you would rather open the catalog in a new tab from your own design.</p>
-      <div class="copybox">
-        <input type="text" readonly value='<a href="${esc(urls.viewer)}" target="_blank" rel="noopener">${esc(book.title)}</a>'>
-        <button class="btn" data-copy='<a href="${esc(urls.viewer)}" target="_blank" rel="noopener">${esc(book.title)}</a>'>Copy</button>
-      </div>
+      ${(() => {
+        const href = urls.live || urls.viewer;
+        const tag = `<a href="${href}" target="_blank" rel="noopener">${book.title}</a>`;
+        return `<div class="copybox">
+          <input type="text" readonly value='${esc(tag)}'>
+          <button class="btn" data-copy='${esc(tag)}'>Copy</button>
+        </div>`;
+      })()}
     </div>
 
     <div class="card">

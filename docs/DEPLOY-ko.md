@@ -77,6 +77,60 @@
 | *Prepare the download first* | **Prepare download** 를 먼저 누르세요 |
 | *files up to 25 MB* | 25 MB 가 넘는 파일이 들어 있습니다. 메시지에 파일 이름이 나옵니다 |
 
+## 홈페이지(아임웹 등)에 끼워 넣기
+
+배포가 끝난 카탈로그는 홈페이지 안에 그대로 넣을 수 있습니다.
+
+### 붙여 넣을 코드
+
+관리자 화면 → 카탈로그 → **Embed on your site** → *Embed in a web page* 의 코드를
+복사해 홈페이지의 **코드 위젯**에 붙여 넣습니다. 이런 모양입니다.
+
+```html
+<iframe src="https://26fw-puppia.pages.dev/?embed=1" title="26FW PUPPIA"
+        style="width:100%;aspect-ratio:16/10;border:0" allowfullscreen loading="lazy"></iframe>
+```
+
+### 아임웹에서
+
+1. 편집 화면에서 **코드** 위젯을 페이지에 올립니다
+2. **코드 에디터 열기**
+3. 위 코드를 붙여 넣고 **저장**
+4. **게시하기**
+
+아임웹 무료 버전은 `<script>` 를 지우고 저장하지만, `<iframe>` 은 스크립트가 아니라서
+그대로 남습니다.
+
+### 반드시 지켜야 할 것
+
+| | 맞음 | 틀림 |
+| --- | --- | --- |
+| 주소 | `https://26fw-puppia.pages.dev/` | `http://localhost:8080/...` |
+| 프로토콜 | `https` | `http` |
+
+`localhost` 는 "이 컴퓨터"라는 뜻입니다. 방문자의 브라우저가 그 주소를 열면
+**방문자 자신의 컴퓨터**를 찾아가기 때문에 아무것도 나오지 않습니다.
+
+그리고 홈페이지가 `https` 인데 `http` 주소를 끼워 넣으면, 브라우저가 안전하지 않다고
+보고 아예 막아 버립니다. 화면이 비어 보이는 대부분의 원인이 이것입니다.
+
+관리자 화면은 배포 전에는 `localhost` 주소를 노란 경고와 함께 보여 주고,
+배포한 뒤에는 `pages.dev` 주소로 바뀝니다. 경고가 보이면 아직 배포 전입니다.
+
+### 높이 조절
+
+`aspect-ratio:16/10` 이 가로세로 비율입니다. 카탈로그가 세로로 길면 `16/12` 나 `4/3`
+처럼 뒷숫자를 키우세요. 고정 높이로 하고 싶으면 이렇게 바꿉니다.
+
+```html
+style="width:100%;height:720px;border:0"
+```
+
+### 다음 시즌 카탈로그로 바꿀 때
+
+같은 프로젝트 이름으로 다시 **Publish to Cloudflare** 하면 주소가 그대로 유지됩니다.
+홈페이지 코드는 손대지 않아도 내용만 새것으로 바뀝니다.
+
 ## 출처
 
 * 파일 25 MB 한계, 배포 횟수 — [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/)

@@ -138,6 +138,9 @@ export function newBook(fields = {}) {
     toc: [],
     links: {},
     downloads: { pdf: false, filename: null },
+    // Where this catalog was last published to, so the embed snippet can point
+    // at the public address rather than the machine it was built on.
+    deployment: null,
     stats: { views: 0 },
     createdAt: created,
     updatedAt: created,
