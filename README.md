@@ -1,6 +1,6 @@
 # eBook Studio
 
-**버전 2.0.0** — 내려받기 전 확인용. 관리자 화면 왼쪽 아래와 실행 창 맨 윗줄에
+**버전 2.1.0** — 내려받기 전 확인용. 관리자 화면 왼쪽 아래와 실행 창 맨 윗줄에
 같은 번호가 보이면 최신 버전이 돌고 있는 것입니다.
 
 A self-hosted digital-catalog platform: drop in a PDF, get a fast web viewer you
@@ -110,9 +110,9 @@ Lost the password: `npm run reset-admin -- you@example.com newpassword`.
 Publish without a server: the *Embed on your site* tab builds the catalog into
 a single `.zip` of HTML, CSS, JS and images that works on any static host, with
 contents, search, links and thumbnails intact - drop it straight onto Cloudflare
-Pages. `npm run export` does the same from the command line, where `--zoom 3600`
-re-renders the zoom tier larger to buy back magnification range that a static
-host cannot produce on demand.
+Pages. `npm run export` does the same from the command line, where `--zoom`
+re-renders the zoom tier at a chosen width for catalogs whose PDF holds more
+detail than the stored images do.
 
 Walkthroughs: [`docs/CLOUDFLARE-ko.md`](docs/CLOUDFLARE-ko.md) (recommended),
 [`docs/CAFE24-ko.md`](docs/CAFE24-ko.md), and
@@ -179,9 +179,14 @@ Each catalog owns `data/books/<id>/` with `source.pdf`, `pages/`, `zoom/`,
   string, so a re-import busts the cache without a purge.
 * Search runs on the server against the extracted text and returns line boxes,
   which is what lets the viewer highlight the hit on the page.
-* Zoom detail is rendered on demand rather than pre-generated, so a catalog
-  costs a few megabytes instead of hundreds. Requests are quantised to a grid
-  and cached for a week, and a catalog imported from images (no PDF to render
-  from) caps its zoom at the stored resolution instead of upscaling.
+* Zoom is one fixed step, sized so that one image pixel covers at most one CSS
+  pixel: the page is never stretched past the resolution the file actually
+  holds. At the step the magnified page is laid out at its real pixel size
+  rather than transformed, so the browser draws the large image instead of
+  stretching a composited layer taken at reading size.
+* Extra zoom detail is rendered on demand from the PDF for pages that are
+  vector art and so have more to give than the stored image holds. Requests are
+  quantised to a grid and cached for a week. Flattened artwork is already at its
+  ceiling, so it is served from the stored image and never upscaled.
 * Analytics store a daily-rotating hash of IP and user agent, never the raw
   values, and set no tracking cookie.

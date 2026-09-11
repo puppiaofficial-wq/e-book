@@ -19,7 +19,10 @@ if (!file) {
 }
 const flag = (name, fallback = null) => {
   const at = args.indexOf(`--${name}`);
-  return at >= 0 ? (args[at + 1]?.startsWith('--') ? true : args[at + 1]) : fallback;
+  if (at < 0) return fallback;
+  const next = args[at + 1];
+  // A switch with nothing after it, or followed by another switch, is simply on.
+  return next === undefined || next.startsWith('--') ? true : next;
 };
 
 const source = path.resolve(file);

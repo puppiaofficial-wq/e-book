@@ -414,7 +414,8 @@ html[data-theme='light'] .pane { box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
 }
 .zoom.is-panning { cursor: grabbing; }
 
-.zoom__canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: flex; will-change: transform; }
+.zoom__canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: flex; }
+.zoom__canvas.is-moving { will-change: transform; }
 .zoom__page {
   position: relative;
   flex: none;

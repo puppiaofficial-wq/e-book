@@ -96,7 +96,7 @@ app.innerHTML = `
   <div class="zoom" id="zoom" data-open="false" aria-hidden="true">
     <div class="zoom__canvas" id="zoomCanvas"></div>
     <button class="btn zoom__close" id="zoomClose" aria-label="Close zoom">${svg(ICON.close)}</button>
-    <div class="zoom__hint" id="zoomHint">Scroll or pinch to zoom, drag to pan</div>
+    <div class="zoom__hint" id="zoomHint">Drag to move around · click to close</div>
     <div class="zoom__busy" id="zoomBusy" hidden><span class="zoom__spin"></span>Loading detail</div>
   </div>
 
@@ -726,17 +726,22 @@ function buildThumbs() {
  *
  * The overlay opens as an exact copy of the spread already on screen and then
  * scales up around the point that was clicked, so the switch to the larger
- * image is never visible. Magnification is a fixed step rather than a free
- * scroll: a page is only ever shown at a size its artwork can actually fill,
- * which is what keeps small print crisp instead of smeared.
+ * image is never visible. Once the animation lands, the pages are given their
+ * real pixel size and the transform is reset to 1: during the animation the
+ * browser is stretching a composited layer, and leaving it that way is what
+ * made a magnified page look soft even though the file behind it was sharp.
+ *
+ * Magnification is one fixed step, never free: a page is only ever shown at a
+ * size its artwork can actually fill, which keeps small print crisp instead of
+ * smeared. Dragging moves the page; a click puts it back.
  */
-const ZOOM_STEP = 2;     // what one click is worth
+const ZOOM_STEP = 4;     // what one click is worth, when the artwork allows it
 const ZOOM_ANIM = 260;   // ms
 
 const zoom = {
-  open: false, scale: 1, x: 0, y: 0,
-  pageW: 0, pageH: 0, cols: 1, max: 2,
-  pointers: new Map(), pinch: null, moved: 0, timer: null
+  open: false, scale: 1, baked: 1, x: 0, y: 0,
+  pageW: 0, pageH: 0, cols: 1, step: ZOOM_STEP,
+  pointers: new Map(), panId: null, moved: 0, timer: null, settle: null
 };
 
 function visiblePages() {
@@ -756,11 +761,15 @@ function readingBox() {
   return { left, top: boxes[0].top, width: right - left, height: boxes[0].height };
 }
 
-/** Never show a page larger than its own artwork can fill. */
-function maxZoomScale(readingPageWidth) {
-  const dpr = Math.min(3, window.devicePixelRatio || 1);
+/**
+ * One click goes as close to the artwork's own resolution as it can, and never
+ * past it. At the cap one image pixel covers one CSS pixel, which is the
+ * sharpest the page can be drawn; going further would only stretch pixels the
+ * file does not have, which is what made the old viewer look broken.
+ */
+function zoomStepFor(readingPageWidth) {
   const ceiling = BOOK.sizes?.native || BOOK.sizes?.zoom || 2000;
-  return Math.max(1.25, Math.min(4, ceiling / dpr / readingPageWidth));
+  return Math.max(1.25, Math.min(ZOOM_STEP, ceiling / readingPageWidth));
 }
 
 function openZoom(clientX, clientY) {
@@ -772,7 +781,7 @@ function openZoom(clientX, clientY) {
   zoom.cols = pages.length;
   zoom.pageW = box.width / pages.length;
   zoom.pageH = box.height;
-  zoom.max = maxZoomScale(zoom.pageW);
+  zoom.step = zoomStepFor(zoom.pageW);
 
   // The reading image is already decoded, so painting it underneath means the
   // overlay is never blank while the larger file arrives.
@@ -783,6 +792,8 @@ function openZoom(clientX, clientY) {
     .join('');
 
   zoom.scale = 1;
+  zoom.baked = 1;
+  zoom.panId = null;
   zoom.x = box.left;
   zoom.y = box.top;
   zoom.open = true;
@@ -795,19 +806,40 @@ function openZoom(clientX, clientY) {
   const atY = clientY == null ? box.top + box.height / 2 : clientY;
   requestAnimationFrame(() => {
     if (!zoom.open) return;
-    zoomAt(atX, atY, Math.min(ZOOM_STEP, zoom.max), true);
+    setMoving(true);
+    zoomAt(atX, atY, zoom.step, true);
+    // The animation runs on the GPU from a layer rasterised at reading size.
+    // Once it lands, give the pages their real pixel size so the browser draws
+    // the large image at full resolution instead of stretching that layer.
+    clearTimeout(zoom.settle);
+    zoom.settle = setTimeout(bakeScale, ZOOM_ANIM + 30);
   });
+}
+
+function bakeScale() {
+  if (!zoom.open || Math.abs(zoom.scale - zoom.baked) < 0.01) return;
+  const width = zoom.pageW * zoom.scale;
+  const height = zoom.pageH * zoom.scale;
+  el.zoomCanvas.querySelectorAll('.zoom__page').forEach((node) => {
+    node.style.width = `${width}px`;
+    node.style.height = `${height}px`;
+  });
+  zoom.baked = zoom.scale;
+  applyZoom(false);
+  setMoving(false);
 }
 
 function closeZoom() {
   if (!zoom.open) return;
   zoom.open = false;
   clearTimeout(zoom.timer);
+  clearTimeout(zoom.settle);
   const box = readingBox();
   if (box && !REDUCED) {
     zoom.scale = 1;
     zoom.x = box.left;
     zoom.y = box.top;
+    setMoving(true);
     applyZoom(true);
     el.zoom.dataset.open = 'false';
     setTimeout(finishClose, ZOOM_ANIM);
@@ -821,6 +853,7 @@ function finishClose() {
   if (zoom.open) return; // reopened while the animation ran
   el.zoom.setAttribute('aria-hidden', 'true');
   el.zoom.classList.remove('is-panning');
+  setMoving(false);
   el.zoomCanvas.innerHTML = '';
   el.zoomBusy.hidden = true;
 }
@@ -828,12 +861,18 @@ function finishClose() {
 function applyZoom(animate) {
   el.zoomCanvas.style.transition =
     animate && !REDUCED ? `transform ${ZOOM_ANIM}ms cubic-bezier(.22,.61,.36,1)` : 'none';
-  el.zoomCanvas.style.transform = `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`;
+  el.zoomCanvas.style.transform =
+    `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale / zoom.baked})`;
   scheduleHires();
 }
 
+/** GPU promotion, only while something is actually moving. */
+function setMoving(on) {
+  el.zoomCanvas.classList.toggle('is-moving', on);
+}
+
 function zoomAt(clientX, clientY, factor, animate) {
-  const next = Math.max(1, Math.min(zoom.max, zoom.scale * factor));
+  const next = Math.max(1, Math.min(zoom.step, zoom.scale * factor));
   const ratio = next / zoom.scale;
   zoom.x = clientX - (clientX - zoom.x) * ratio;
   zoom.y = clientY - (clientY - zoom.y) * ratio;
@@ -941,38 +980,37 @@ function loadHires(node, url, rect) {
 
 /* ------------------------------------------------- zoom interaction */
 
+/* Magnification is one fixed step, never free: a page is only ever shown at
+   its own resolution, so it can never be stretched past what the file holds.
+   Wheel and pinch therefore pan instead of scaling. */
 el.zoom.addEventListener('wheel', (event) => {
   event.preventDefault();
-  zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.2 : 1 / 1.2, false);
-  if (zoom.scale <= 1.02) closeZoom();
+  zoom.x -= event.deltaX;
+  zoom.y -= event.deltaY;
+  clampZoom();
+  applyZoom(false);
 }, { passive: false });
 
 el.zoom.addEventListener('pointerdown', (event) => {
   if (event.target.closest('.btn')) return;
   el.zoom.setPointerCapture(event.pointerId);
   zoom.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  zoom.moved = 0;
-  el.zoom.classList.add('is-panning');
-  if (zoom.pointers.size === 2) {
-    const [a, b] = [...zoom.pointers.values()];
-    zoom.pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) };
+  // A second finger must not fight the first for the page, so only the finger
+  // that started the drag moves it.
+  if (zoom.panId == null) {
+    zoom.panId = event.pointerId;
+    zoom.moved = 0;
   }
+  el.zoom.classList.add('is-panning');
+  setMoving(true);
 });
 
 el.zoom.addEventListener('pointermove', (event) => {
   const previous = zoom.pointers.get(event.pointerId);
-  if (!previous) return;
+  if (!previous || event.pointerId !== zoom.panId) return;
   const point = { x: event.clientX, y: event.clientY };
   zoom.pointers.set(event.pointerId, point);
 
-  if (zoom.pointers.size === 2 && zoom.pinch) {
-    const [a, b] = [...zoom.pointers.values()];
-    const distance = Math.hypot(a.x - b.x, a.y - b.y);
-    zoom.moved += 20;
-    zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, distance / (zoom.pinch.distance || distance), false);
-    zoom.pinch.distance = distance;
-    return;
-  }
   const dx = point.x - previous.x;
   const dy = point.y - previous.y;
   zoom.moved += Math.abs(dx) + Math.abs(dy);
@@ -983,11 +1021,12 @@ el.zoom.addEventListener('pointermove', (event) => {
 });
 
 function releaseZoomPointer(event) {
-  const wasSingle = zoom.pointers.size === 1;
+  const wasSingle = zoom.pointers.size === 1 && event.pointerId === zoom.panId;
   zoom.pointers.delete(event.pointerId);
-  if (zoom.pointers.size < 2) zoom.pinch = null;
+  if (event.pointerId === zoom.panId) zoom.panId = null;
   if (!zoom.pointers.size) {
     el.zoom.classList.remove('is-panning');
+    setMoving(false);
     // A click that did not drag means "done looking".
     if (wasSingle && zoom.moved < 8) closeZoom();
   }
