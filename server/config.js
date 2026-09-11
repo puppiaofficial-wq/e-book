@@ -57,8 +57,8 @@ export const RENDER = {
   zoomMin: 3000,
   zoomMax: 4600,
   viewDpi: 170,      // page image used by the viewer at reading size
-  viewMin: 1500,
-  viewMax: 2400,
+  viewMin: 1200,
+  viewMax: 2000,
   thumbWidth: 320,   // contact sheet / bookshelf cover
   /* Catalog artwork is usually placed at print resolution and then resampled
      for the screen, which softens edges. A light unsharp mask puts the

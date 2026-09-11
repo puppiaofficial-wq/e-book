@@ -184,6 +184,7 @@ function printedLabel(page) {
 function measure() {
   state.spread = useSpread();
   el.book.classList.toggle('book--spread', state.spread);
+  el.book.classList.add('book--ready');
   const rect = el.stage.getBoundingClientRect();
   const pad = window.innerWidth <= 720 ? 12 : 40;
   const availW = Math.max(120, rect.width - pad);
@@ -287,9 +288,17 @@ const preloaded = new Set();
 function preload() {
   const kind = bestKind();
   const first = firstOf(state.page);
+  const wanted = [];
   for (let p = first - 3; p <= first + 5; p += 1) {
-    if (p < 1 || p > N) continue;
-    const src = urlFor(kind, p);
+    if (p >= 1 && p <= N) wanted.push(urlFor(kind, p));
+  }
+  // Fetch the magnified pages for the current spread too, so clicking to zoom
+  // shows the sharp image immediately instead of after a download.
+  const pair = pairOf(state.page);
+  for (const p of [pair.left, pair.right]) {
+    if (p) wanted.push(urlFor('zoom', p));
+  }
+  for (const src of wanted) {
     if (preloaded.has(src)) continue;
     preloaded.add(src);
     const img = new Image();
@@ -489,22 +498,9 @@ el.stage.addEventListener('pointerup', endDrag);
 el.stage.addEventListener('pointercancel', endDrag);
 
 function handleTap(event) {
-  const rect = el.stage.getBoundingClientRect();
-  const ratio = (event.clientX - rect.left) / rect.width;
-  if (CAN_HOVER) {
-    if (ratio < 0.35) turn('prev');
-    else if (ratio > 0.65) turn('next');
-    return;
-  }
-  if (ratio < 0.3) turn(rtl ? 'next' : 'prev');
-  else if (ratio > 0.7) turn(rtl ? 'prev' : 'next');
-  else toggleUi();
-}
-
-el.stage.addEventListener('dblclick', (event) => {
   if (event.target.closest('.hotspot')) return;
-  openZoom();
-});
+  openZoom(event.clientX, event.clientY);
+}
 
 el.stage.addEventListener('click', (event) => {
   const spot = event.target.closest('.hotspot');
@@ -726,107 +722,152 @@ function buildThumbs() {
 /* ---------------------------------------------------------- zoom */
 
 /**
- * The pre-rendered zoom image has a fixed resolution, so magnifying past it can
- * only upscale. Once the reader settles on a view, the server re-renders just
- * that region from the source PDF at screen resolution and it is overlaid on
- * the base image, which keeps small print crisp at any magnification.
+ * Click to magnify, the way a printed catalog is read.
+ *
+ * The overlay opens as an exact copy of the spread already on screen and then
+ * scales up around the point that was clicked, so the switch to the larger
+ * image is never visible. Magnification is a fixed step rather than a free
+ * scroll: a page is only ever shown at a size its artwork can actually fill,
+ * which is what keeps small print crisp instead of smeared.
  */
-const HIRES_GRID = 256;   // quantised request rects reuse the browser cache
-const HIRES_MAX_PX = 3600;
+const ZOOM_STEP = 2;     // what one click is worth
+const ZOOM_ANIM = 260;   // ms
 
 const zoom = {
-  scale: 1, x: 0, y: 0, fitH: 0, cols: 1, max: 6,
-  pointers: new Map(), pinch: null, timer: null
+  open: false, scale: 1, x: 0, y: 0,
+  pageW: 0, pageH: 0, cols: 1, max: 2,
+  pointers: new Map(), pinch: null, moved: 0, timer: null
 };
 
-function openZoom() {
+function visiblePages() {
   const pair = pairOf(state.page);
-  const pages = (rtl ? [pair.right, pair.left] : [pair.left, pair.right]).filter(Boolean);
-  if (!pages.length) return;
+  return (rtl ? [pair.right, pair.left] : [pair.left, pair.right]).filter(Boolean);
+}
+
+/** Where the pages sit on screen right now, in viewport coordinates. */
+function readingBox() {
+  const panes = [el.paneLeft, el.paneRight].filter(
+    (pane) => pane.style.display !== 'none' && !pane.classList.contains('pane--empty')
+  );
+  if (!panes.length) return null;
+  const boxes = panes.map((pane) => pane.getBoundingClientRect());
+  const left = Math.min(...boxes.map((b) => b.left));
+  const right = Math.max(...boxes.map((b) => b.right));
+  return { left, top: boxes[0].top, width: right - left, height: boxes[0].height };
+}
+
+/** Never show a page larger than its own artwork can fill. */
+function maxZoomScale(readingPageWidth) {
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const ceiling = BOOK.sizes?.native || BOOK.sizes?.zoom || 2000;
+  return Math.max(1.25, Math.min(4, ceiling / dpr / readingPageWidth));
+}
+
+function openZoom(clientX, clientY) {
+  if (zoom.open) return;
+  const pages = visiblePages();
+  const box = readingBox();
+  if (!pages.length || !box) return;
 
   zoom.cols = pages.length;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  zoom.fitH = Math.min(vh, vw / (zoom.cols * aspect));
-  const pageWidth = zoom.fitH * aspect;
+  zoom.pageW = box.width / pages.length;
+  zoom.pageH = box.height;
+  zoom.max = maxZoomScale(zoom.pageW);
 
+  // The reading image is already decoded, so painting it underneath means the
+  // overlay is never blank while the larger file arrives.
   el.zoomCanvas.innerHTML = pages
-    .map((p) => `<div class="zoom__page" data-page="${p}" style="width:${pageWidth}px;height:${zoom.fitH}px">
-        <img class="zoom__base" src="${urlFor('zoom', p)}" alt="Page ${printedLabel(p)}" draggable="false">
+    .map((page) => `<div class="zoom__page" data-page="${page}" style="width:${zoom.pageW}px;height:${zoom.pageH}px;background-image:url('${urlFor('page', page)}')">
+        <img src="${urlFor('zoom', page)}" alt="Page ${printedLabel(page)}" draggable="false">
       </div>`)
     .join('');
 
-  zoom.max = maxScale(pageWidth);
   zoom.scale = 1;
-  zoom.x = (vw - zoom.cols * pageWidth) / 2;
-  zoom.y = (vh - zoom.fitH) / 2;
-  applyZoom();
+  zoom.x = box.left;
+  zoom.y = box.top;
+  zoom.open = true;
+  applyZoom(false);
 
   el.zoom.dataset.open = 'true';
   el.zoom.setAttribute('aria-hidden', 'false');
-  el.zoomHint.style.opacity = '1';
-  setTimeout(() => { el.zoomHint.style.opacity = '0'; }, 2600);
-}
 
-/**
- * Never magnify past what the artwork holds. For flattened catalog pages that
- * limit is the source image; for vector pages the server can render any size.
- */
-function maxScale(pageCssWidth) {
-  const ceiling = BOOK.sizes?.native
-    || (BOOK.capabilities.hires ? null : BOOK.sizes?.zoom || 2400);
-  if (!ceiling) return 8;
-  const dpr = Math.min(3, window.devicePixelRatio || 1);
-  // Stop at one screen pixel per source pixel, where the page is at its
-  // sharpest. Only a screen dense enough to make that too small to be useful
-  // is allowed a little upscale on top.
-  const oneToOne = ceiling / dpr / pageCssWidth;
-  return Math.max(1.4, Math.min(8, Math.max(oneToOne, 2)));
+  const atX = clientX == null ? box.left + box.width / 2 : clientX;
+  const atY = clientY == null ? box.top + box.height / 2 : clientY;
+  requestAnimationFrame(() => {
+    if (!zoom.open) return;
+    zoomAt(atX, atY, Math.min(ZOOM_STEP, zoom.max), true);
+  });
 }
 
 function closeZoom() {
+  if (!zoom.open) return;
+  zoom.open = false;
   clearTimeout(zoom.timer);
-  hiresPending = 0;
-  el.zoomBusy.hidden = true;
-  el.zoom.dataset.open = 'false';
-  el.zoom.setAttribute('aria-hidden', 'true');
-  el.zoomCanvas.innerHTML = '';
+  const box = readingBox();
+  if (box && !REDUCED) {
+    zoom.scale = 1;
+    zoom.x = box.left;
+    zoom.y = box.top;
+    applyZoom(true);
+    el.zoom.dataset.open = 'false';
+    setTimeout(finishClose, ZOOM_ANIM);
+  } else {
+    el.zoom.dataset.open = 'false';
+    finishClose();
+  }
 }
 
-function applyZoom() {
+function finishClose() {
+  if (zoom.open) return; // reopened while the animation ran
+  el.zoom.setAttribute('aria-hidden', 'true');
+  el.zoom.classList.remove('is-panning');
+  el.zoomCanvas.innerHTML = '';
+  el.zoomBusy.hidden = true;
+}
+
+function applyZoom(animate) {
+  el.zoomCanvas.style.transition =
+    animate && !REDUCED ? `transform ${ZOOM_ANIM}ms cubic-bezier(.22,.61,.36,1)` : 'none';
   el.zoomCanvas.style.transform = `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`;
   scheduleHires();
 }
 
-function zoomAt(clientX, clientY, factor) {
+function zoomAt(clientX, clientY, factor, animate) {
   const next = Math.max(1, Math.min(zoom.max, zoom.scale * factor));
   const ratio = next / zoom.scale;
   zoom.x = clientX - (clientX - zoom.x) * ratio;
   zoom.y = clientY - (clientY - zoom.y) * ratio;
   zoom.scale = next;
   clampZoom();
-  applyZoom();
+  applyZoom(animate);
 }
 
+/** Keeps a magnified page inside the window; leaves the opening frame alone. */
 function clampZoom() {
+  if (zoom.scale <= 1.02) return;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const contentW = zoom.cols * zoom.fitH * aspect * zoom.scale;
-  const contentH = zoom.fitH * zoom.scale;
+  const contentW = zoom.cols * zoom.pageW * zoom.scale;
+  const contentH = zoom.pageH * zoom.scale;
   const slackX = Math.max(0, contentW - vw);
   const slackY = Math.max(0, contentH - vh);
   zoom.x = slackX ? Math.min(0, Math.max(-slackX, zoom.x)) : (vw - contentW) / 2;
   zoom.y = slackY ? Math.min(0, Math.max(-slackY, zoom.y)) : (vh - contentH) / 2;
 }
 
+/* Extra detail from the server, for catalogs whose pages are vector art and
+   therefore have more to give than the stored image holds. */
+const HIRES_GRID = 256;
+const HIRES_MAX_PX = 3600;
+
 function scheduleHires() {
-  if (!BOOK.capabilities.hires || !BOOK.urls.hires) return;
+  if (!BOOK.capabilities.hires || !BOOK.urls.hires || BOOK.sizes?.native) return;
   clearTimeout(zoom.timer);
   zoom.timer = setTimeout(requestHires, 200);
 }
 
 function requestHires() {
-  if (el.zoom.dataset.open !== 'true' || zoom.scale <= 1.05) return;
+  if (!zoom.open || zoom.scale <= 1.05) return;
   const dpr = Math.min(3, window.devicePixelRatio || 1);
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -839,7 +880,6 @@ function requestHires() {
     const bottom = Math.min(box.height, vh - box.top);
     if (right - left < 48 || bottom - top < 48) continue;
 
-    // A margin around the viewport keeps short pans covered without a refetch.
     const padX = (right - left) * 0.08;
     const padY = (bottom - top) * 0.08;
     const rect = quantiseRect({
@@ -848,11 +888,8 @@ function requestHires() {
       w: (right - left + padX * 2) / box.width,
       h: (bottom - top + padY * 2) / box.height
     });
-
-    const ceiling = BOOK.sizes?.native ? Math.round(BOOK.sizes.native * rect.w) : HIRES_MAX_PX;
     const pixels = Math.min(
       HIRES_MAX_PX,
-      ceiling,
       Math.max(256, Math.round((rect.w * box.width * dpr) / 128) * 128)
     );
     const url = `${BOOK.urls.hires.replace('{n}', PAD4(node.dataset.page))}` +
@@ -880,14 +917,13 @@ function setBusy(delta) {
   el.zoomBusy.hidden = hiresPending === 0;
 }
 
-/** Decode first, then swap, so the reader never sees a half-painted overlay. */
 function loadHires(node, url, rect) {
   const probe = new Image();
   probe.decoding = 'async';
   setBusy(1);
   probe.onload = () => {
     setBusy(-1);
-    if (node.dataset.hires !== url || el.zoom.dataset.open !== 'true') return;
+    if (node.dataset.hires !== url || !zoom.open) return;
     const layer = document.createElement('img');
     layer.className = 'zoom__hi';
     layer.src = url;
@@ -903,15 +939,19 @@ function loadHires(node, url, rect) {
   probe.src = url;
 }
 
+/* ------------------------------------------------- zoom interaction */
+
 el.zoom.addEventListener('wheel', (event) => {
   event.preventDefault();
-  zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.16 : 1 / 1.16);
+  zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.2 : 1 / 1.2, false);
+  if (zoom.scale <= 1.02) closeZoom();
 }, { passive: false });
 
 el.zoom.addEventListener('pointerdown', (event) => {
   if (event.target.closest('.btn')) return;
   el.zoom.setPointerCapture(event.pointerId);
   zoom.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  zoom.moved = 0;
   el.zoom.classList.add('is-panning');
   if (zoom.pointers.size === 2) {
     const [a, b] = [...zoom.pointers.values()];
@@ -928,35 +968,38 @@ el.zoom.addEventListener('pointermove', (event) => {
   if (zoom.pointers.size === 2 && zoom.pinch) {
     const [a, b] = [...zoom.pointers.values()];
     const distance = Math.hypot(a.x - b.x, a.y - b.y);
-    zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, distance / (zoom.pinch.distance || distance));
+    zoom.moved += 20;
+    zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, distance / (zoom.pinch.distance || distance), false);
     zoom.pinch.distance = distance;
     return;
   }
-  zoom.x += point.x - previous.x;
-  zoom.y += point.y - previous.y;
+  const dx = point.x - previous.x;
+  const dy = point.y - previous.y;
+  zoom.moved += Math.abs(dx) + Math.abs(dy);
+  zoom.x += dx;
+  zoom.y += dy;
   clampZoom();
-  applyZoom();
+  applyZoom(false);
 });
 
 function releaseZoomPointer(event) {
+  const wasSingle = zoom.pointers.size === 1;
   zoom.pointers.delete(event.pointerId);
   if (zoom.pointers.size < 2) zoom.pinch = null;
-  if (!zoom.pointers.size) el.zoom.classList.remove('is-panning');
-  scheduleHires();
+  if (!zoom.pointers.size) {
+    el.zoom.classList.remove('is-panning');
+    // A click that did not drag means "done looking".
+    if (wasSingle && zoom.moved < 8) closeZoom();
+  }
 }
 el.zoom.addEventListener('pointerup', releaseZoomPointer);
 el.zoom.addEventListener('pointercancel', releaseZoomPointer);
-el.zoom.addEventListener('dblclick', (event) => {
-  if (zoom.scale > 1.05) {
-    zoom.scale = 1;
-    clampZoom();
-    applyZoom();
-  } else {
-    zoomAt(event.clientX, event.clientY, Math.min(2.4, zoom.max));
-  }
-});
-el.zoomClose.onclick = closeZoom;
-el.btnZoom.onclick = openZoom;
+
+el.zoomClose.onclick = (event) => {
+  event.stopPropagation();
+  closeZoom();
+};
+el.btnZoom.onclick = () => openZoom(null, null);
 
 /* --------------------------------------------------------- share */
 
@@ -1114,10 +1157,10 @@ window.addEventListener('keydown', (event) => {
   else if (key === 'c' || key === 'C') togglePanel('panelContents');
   else if (key === 's' || key === 'S') togglePanel('panelSearch');
   else if (key === 'g' || key === 'G') togglePanel('thumbs');
-  else if (key === 'z' || key === 'Z') (el.zoom.dataset.open === 'true' ? closeZoom() : openZoom());
+  else if (key === 'z' || key === 'Z') (zoom.open ? closeZoom() : openZoom(null, null));
   else if (key === 'h' || key === 'H') el.btnShare.click();
   else if (key === 'Escape') {
-    if (el.zoom.dataset.open === 'true') closeZoom();
+    if (zoom.open) closeZoom();
     else if (el.shareBackdrop.dataset.open === 'true') el.shareBackdrop.dataset.open = 'false';
     else openPanel(null);
   }
@@ -1180,7 +1223,7 @@ window.addEventListener('resize', () => {
     measure();
     if (wasSpread !== state.spread) state.page = firstOf(state.page);
     renderPanes();
-    if (el.zoom.dataset.open === 'true') openZoom();
+    if (zoom.open) closeZoom();
   }, 120);
 });
 

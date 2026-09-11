@@ -1,6 +1,6 @@
 # eBook Studio
 
-**버전 1.5.0** — 내려받기 전 확인용. 관리자 화면 왼쪽 아래와 실행 창 맨 윗줄에
+**버전 2.0.0** — 내려받기 전 확인용. 관리자 화면 왼쪽 아래와 실행 창 맨 윗줄에
 같은 번호가 보이면 최신 버전이 돌고 있는 것입니다.
 
 A self-hosted digital-catalog platform: drop in a PDF, get a fast web viewer you
@@ -32,9 +32,10 @@ PDF  ──►  server-side conversion (MuPDF + sharp)  ──►  WebP page set
 * Realistic 3D page turn on desktop, drag-to-turn with your finger, slide on phones.
 * Two-page spread on wide screens, single page on phones, decided automatically.
 * Contents panel, full-text search with in-page highlighting, thumbnail grid.
-* Pinch / wheel / double-tap zoom that stays sharp: once the view settles the
-  server re-renders just that region from the source PDF at screen resolution,
-  so small print holds up at 8x instead of turning into an upscaled blur.
+* Click anywhere on a page to magnify that spot, drag to move around it, click
+  again to come back. Magnification is capped at what the artwork can fill, so
+  small print stays crisp rather than smearing; where the pages are vector art
+  the server re-renders the region in view for detail beyond the stored image.
 * Clickable link areas, deep links (`#p=12`), keyboard shortcuts, fullscreen.
 * Share sheet with copy link, email, WhatsApp, LinkedIn and a QR code.
 * Dark or light theme, your accent colour and logo.

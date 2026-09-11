@@ -167,6 +167,9 @@ html[data-theme='light'] .pane { box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
   user-select: none;
   -webkit-user-drag: none;
 }
+/* Clicking a page magnifies it, so the pointer says so. */
+.book--ready .pane:not(.pane--empty) { cursor: zoom-in; }
+.hotspot { cursor: pointer; }
 .pane--empty { background: transparent; box-shadow: none; }
 .pane--empty img { visibility: hidden; }
 
@@ -397,18 +400,36 @@ html[data-theme='light'] .pane { box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
   inset: 0;
   background: rgba(6, 8, 10, .96);
   z-index: 60;
-  display: none;
   touch-action: none;
   overflow: hidden;
-  cursor: grab;
+  cursor: zoom-out;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .26s ease, visibility 0s .26s;
 }
-.zoom[data-open='true'] { display: block; }
+.zoom[data-open='true'] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .26s ease;
+}
 .zoom.is-panning { cursor: grabbing; }
+
 .zoom__canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: flex; will-change: transform; }
-.zoom__page { position: relative; flex: none; background: #fff; overflow: hidden; }
-.zoom__base { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.zoom__page {
+  position: relative;
+  flex: none;
+  background: #fff no-repeat center / 100% 100%;
+  overflow: hidden;
+}
+.zoom__page img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 /* Server-rendered detail for the region in view, laid exactly over the base. */
-.zoom__hi { position: absolute; display: block; }
+.zoom__hi { position: absolute; inset: auto; display: block; }
 .zoom__close { position: fixed; top: 14px; right: 14px; z-index: 62; background: var(--chrome); }
 .zoom__busy {
   position: fixed; bottom: 22px; right: 22px; z-index: 62;

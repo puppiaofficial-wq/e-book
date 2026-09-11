@@ -1,6 +1,6 @@
 {
   "name": "ebook-studio",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "description": "Self-hosted e-book / digital catalog studio: PDF in, shareable web viewer out.",
