@@ -446,12 +446,22 @@ function overviewTab(host) {
           <tr><td>Imported from</td><td><b>${q.source === 'pdf' ? 'PDF' : 'Page images'}</b></td></tr>
           <tr><td>Stored page size</td><td><b>${q.storedWidth} × ${q.storedHeight} px</b>${q.dpi ? ` &nbsp;·&nbsp; about ${q.dpi} DPI` : ''}</td></tr>
           ${q.mm ? `<tr><td>Physical page</td><td>${q.mm.w} × ${q.mm.h} mm</td></tr>` : ''}
+          <tr><td>Artwork in the PDF</td><td>${q.sourceWidth
+            ? `<b>${q.sourceWidth} px</b> wide${q.sourceDpi ? ` &nbsp;·&nbsp; about ${q.sourceDpi} DPI` : ''} — flattened images`
+            : 'vector — can be rendered at any size'}</td></tr>
           <tr><td>Double-page spreads</td><td>${q.splitApplied ? 'split into single pages' : 'not detected'}</td></tr>
-          <tr><td>Zoom detail</td><td>${q.hires
-            ? '<span class="pill pill--live">On demand</span> re-rendered from the PDF, sharp at any magnification'
-            : '<span class="pill pill--warn">Stored only</span> magnification stops at the stored resolution'}</td></tr>
+          <tr><td>Zoom detail</td><td>${q.sourceWidth
+            ? '<span class="pill pill--warn">Source limited</span> zoom stops where the PDF runs out of detail'
+            : q.hires
+              ? '<span class="pill pill--live">On demand</span> re-rendered from the PDF, sharp at any magnification'
+              : '<span class="pill pill--warn">Stored only</span> magnification stops at the stored resolution'}</td></tr>
         </tbody>
       </table>
+      ${q.sourceWidth ? `<p class="card__hint" style="margin:16px 0 0">
+        This PDF holds flattened artwork, so ${q.sourceWidth} px is all the detail that exists.
+        Rendering larger would only invent pixels, so the viewer stops magnifying there.
+        To go sharper, export the PDF with live text or higher-resolution images.
+      </p>` : ''}
     </div>
 
     <div class="card">

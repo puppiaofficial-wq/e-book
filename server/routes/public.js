@@ -215,7 +215,8 @@ router.get('/media/:bookId/hires/:file', wrap(async (req, res) => {
     sourcePage: target.sourcePage,
     half: target.half,
     rect: { x, y, w, h },
-    pixels
+    pixels,
+    nativeWidth: book.pages.sizes?.native || null
   });
   res.set('Cache-Control', 'public, max-age=604800, immutable');
   res.type('image/webp').send(buffer);

@@ -13,6 +13,7 @@ import * as mupdf from 'mupdf';
 import sharp from 'sharp';
 import { RENDER } from './config.js';
 import { pad } from './util.js';
+import { sourceWidthOf } from './pdfinfo.js';
 
 const SPREAD_RATIO = 1.25; // width/height above this looks like a 2-up spread
 
@@ -25,10 +26,18 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
 
   await prepareDirs(outDir);
 
+  // One cheap pass first: page geometry, whether there is a text layer, and how
+  // much real resolution the artwork carries. All three change what we render.
   const geometry = [];
+  let sourceWidth = 0;
+  let anyText = false;
   for (let i = 0; i < sourceCount; i += 1) {
-    const [x0, y0, x1, y1] = doc.loadPage(i).getBounds();
+    const page = doc.loadPage(i);
+    const [x0, y0, x1, y1] = page.getBounds();
     geometry.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    if (!anyText) anyText = hasTextLayer(page);
+    const width = sourceWidthOf(page, x1 - x0);
+    if (width) sourceWidth = Math.max(sourceWidth, width);
   }
   const splitDecision = decideSplits(geometry, opts.splitSpreads);
 
@@ -41,6 +50,16 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
     view: pixelsFor(outputPointWidth, opts.viewDpi, opts.viewMin, opts.viewMax),
     thumb: opts.thumbWidth
   };
+
+  // Flattened artwork has no vector text to gain from a bigger render, so the
+  // source images set the ceiling. A little headroom absorbs the estimate.
+  const nativeWidth = sourceWidth
+    ? Math.round((splitDecision[0] ? sourceWidth / 2 : sourceWidth) * 1.15)
+    : null;
+  if (!anyText && nativeWidth) {
+    target.zoom = Math.max(1600, Math.min(target.zoom, nativeWidth));
+    target.view = Math.min(target.view, target.zoom);
+  }
 
   const outline = readOutline(doc);
   const pages = [];
@@ -112,7 +131,7 @@ export async function convertPdf(pdfPath, outDir, options = {}, onProgress = () 
     splitApplied: splitDecision.some(Boolean),
     // Lets the viewer ask the server to re-render any region from the source.
     map: pages.map((page) => ({ s: page.source, h: page.half })),
-    sizes: target,
+    sizes: { ...target, native: !anyText && nativeWidth ? nativeWidth : null },
     // Physical page size, so the admin can report the effective resolution.
     ptWidth: Number(outputPointWidth.toFixed(2)),
     ptHeight: Number(geometry[0].h.toFixed(2)),
@@ -185,6 +204,14 @@ async function prepareDirs(outDir) {
   for (const sub of ['pages', 'zoom', 'thumbs']) {
     await fsp.rm(path.join(outDir, sub), { recursive: true, force: true });
     await fsp.mkdir(path.join(outDir, sub), { recursive: true });
+  }
+}
+
+function hasTextLayer(page) {
+  try {
+    return page.toStructuredText('preserve-whitespace').asText().trim().length > 0;
+  } catch {
+    return false;
   }
 }
 

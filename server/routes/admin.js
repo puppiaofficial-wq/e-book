@@ -359,7 +359,11 @@ function startConversion(book, files, options) {
 function qualityReport(book) {
   const pages = book.pages;
   const dpi = pages.ptWidth ? Math.round(pages.width / (pages.ptWidth / 72)) : null;
+  const native = pages.sizes?.native || null;
   return {
+    sourceWidth: native,
+    sourceDpi: native && pages.ptWidth ? Math.round(native / (pages.ptWidth / 72)) : null,
+    limitedBySource: Boolean(native && pages.width <= native + 1),
     source: pages.source || (pages.hasText ? 'pdf' : 'unknown'),
     storedWidth: pages.width || 0,
     storedHeight: pages.height || 0,

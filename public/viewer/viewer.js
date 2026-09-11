@@ -768,12 +768,18 @@ function openZoom() {
   setTimeout(() => { el.zoomHint.style.opacity = '0'; }, 2600);
 }
 
-/** Without server-side rendering, never magnify beyond the stored image. */
+/**
+ * Never magnify past what the artwork holds. For flattened catalog pages that
+ * limit is the source image; for vector pages the server can render any size.
+ */
 function maxScale(pageCssWidth) {
-  if (BOOK.capabilities.hires) return 8;
+  const ceiling = BOOK.sizes?.native
+    || (BOOK.capabilities.hires ? null : BOOK.sizes?.zoom || 2400);
+  if (!ceiling) return 8;
   const dpr = Math.min(3, window.devicePixelRatio || 1);
-  const native = (BOOK.sizes?.zoom || 2400) / dpr;
-  return Math.max(1.2, Math.min(6, native / pageCssWidth));
+  // A modest single upscale past the source still reads well and keeps zoom
+  // useful; the renderer itself never goes above the source resolution.
+  return Math.max(1.4, Math.min(8, (ceiling * 1.6) / dpr / pageCssWidth));
 }
 
 function closeZoom() {
@@ -841,8 +847,10 @@ function requestHires() {
       h: (bottom - top + padY * 2) / box.height
     });
 
+    const ceiling = BOOK.sizes?.native ? Math.round(BOOK.sizes.native * rect.w) : HIRES_MAX_PX;
     const pixels = Math.min(
       HIRES_MAX_PX,
+      ceiling,
       Math.max(256, Math.round((rect.w * box.width * dpr) / 128) * 128)
     );
     const url = `${BOOK.urls.hires.replace('{n}', PAD4(node.dataset.page))}` +

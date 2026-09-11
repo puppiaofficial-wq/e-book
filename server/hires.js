@@ -51,7 +51,9 @@ export function forgetDocument(bookId) {
  *              output page came from, when a spread was split
  * @param pixels requested width of the rendered region, in device pixels
  */
-export async function renderRegion({ bookId, pdfPath, sourcePage, half, rect, pixels, maxEdge = MAX_EDGE, maxPixels = MAX_PIXELS, quality = 88 }) {
+export async function renderRegion({ bookId, pdfPath, sourcePage, half, rect, pixels, nativeWidth = null, maxEdge = MAX_EDGE, maxPixels = MAX_PIXELS, quality = 88 }) {
+  // Asking for more pixels than the source holds only blurs the result.
+  if (nativeWidth) pixels = Math.min(pixels, Math.max(256, Math.round(nativeWidth * rect.w)));
   const key = `${bookId}:${sourcePage}:${half}:${rect.x},${rect.y},${rect.w},${rect.h}:${pixels}:${maxEdge}`;
   const cached = tiles.get(key);
   if (cached) return cached;

@@ -87,7 +87,7 @@ export function publicManifest(book, { share = null, preview = false } = {}) {
       hires: canRenderHires(book),
       preview
     },
-    sizes: book.pages.sizes || { view: 1400, zoom: 2400, thumb: 280 },
+    sizes: book.pages.sizes || { view: 1500, zoom: 3000, thumb: 320, native: null },
     toc: book.toc || [],
     links: book.links || {},
     urls: {
